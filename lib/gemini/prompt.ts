@@ -10,13 +10,13 @@ export type GenerateInput = {
   genre: string;
   description: string;
   longText: string;
-  hasCoverImage: boolean;
+  coverImageUrl: string | null;
 };
 
 export function buildPrompt(input: GenerateInput): string {
-  const coverNote = input.hasCoverImage
-    ? `A cover image is attached. Sample 2–3 anchor colors from it and either harmonize (extend the cover's dominant hue) or strike intentional contrast (use its complement). State your choice in the /* PALETTE */ comment. Feature the cover prominently — full-bleed wash behind the hero, a focal figure with deliberate offset, or fragmenting it across sections. Never slap it in a corner.`
-    : `No cover image provided. Choose a palette that the genre and tone demand and state the reasoning in the /* PALETTE */ comment.`;
+  const coverNote = input.coverImageUrl
+    ? `A cover image is attached and its URL is ${JSON.stringify(input.coverImageUrl)}. Sample 2–3 anchor colors from it and either harmonize (extend the cover's dominant hue) or strike intentional contrast (use its complement). State your choice in the /* PALETTE */ comment. Feature the cover prominently — full-bleed wash behind the hero, a focal figure with deliberate offset, or fragmenting it across sections. Never slap it in a corner. When rendering the cover as an <img> or CSS background-image, the src/url MUST be exactly the URL above, character for character. Do not paraphrase, shorten, or substitute it.`
+    : `No cover image provided. Choose a palette that the genre and tone demand and state the reasoning in the /* PALETTE */ comment. Do not invent or guess at any image URL.`;
 
   return `ROLE
 You are an art director at a literary publisher whose book pages have won D&AD pencils. Your work is typography-led, confident, and editorial — never trend-chasing.
@@ -108,6 +108,7 @@ Forbidden (will be stripped or fail downstream sanitization):
 - External fonts (Google Fonts won't load; use system stack only).
 - Repeated site chrome: navigation, header, "Buy" / "Order" buttons, prices, footer.
 - <iframe>, <object>, <embed>, <form>.
+- ANY external image URL except the cover URL provided in INPUT above. Do not invent, guess, paraphrase, or substitute image URLs — invented URLs will 404 and break the page. For all other visuals, use CSS gradients, shapes, blend modes, mask-image, conic/radial gradients, ::before/::after constructions, or typography. No stock-photo URLs, no placeholder services, no Unsplash/Pexels/etc.
 
 CSS RULES (load-bearing, the consumer wraps your CSS in @scope (.release-artifact))
 - Put design tokens on :scope, not :root. (The consumer remaps :root → :scope but emitting :scope directly is cleaner.)
@@ -124,6 +125,7 @@ SELF-CHECK before emitting
 - Zero <script>, zero <link>, zero @import?
 - Everything inside <article class="promo">?
 - Selectors all prefixed .promo (except :scope token block and the leading * reset)?
+- Every http/https URL in the output is EITHER the cover URL from INPUT OR absent. No invented image URLs anywhere (inline <img> or CSS url()).
 
 OUTPUT NOW. HTML only.`;
 }

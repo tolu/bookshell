@@ -109,7 +109,9 @@ export async function POST(req: Request): Promise<Response> {
     genre,
     description,
     longText,
-    hasCoverImage: coverPart !== null,
+    // Only pass the URL if we successfully fetched it. A URL the model can
+    // see but we couldn't fetch is just an invitation to hallucinate.
+    coverImageUrl: coverPart && imageUrl ? imageUrl : null,
   };
   const prompt = buildPrompt(input);
 
