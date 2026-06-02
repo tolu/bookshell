@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<title>Sangen om Odyssevs</title>
+<style>
+/* 
+  DESIGN IDEA: Asymmetric split-screen composition where the "sea" (teal background) 
+  expands vertically, allowing the cover image to "sail" via scroll-driven parallax.
+  
+  PALETTE: Harmonized with the cover image.
+  --plum: oklch(28% 0.08 322) - Sampled from the top half of the cover.
+  --sea: oklch(88% 0.08 198) - Sampled from the stylized waves.
+  --paper: oklch(98% 0.01 322) - An editorial off-white for reading comfort.
+*/
+
+:scope {
+  --plum: light-dark(oklch(28% 0.08 322), oklch(20% 0.06 322));
+  --sea: light-dark(oklch(88% 0.08 198), oklch(35% 0.1 198));
+  --ink: light-dark(oklch(15% 0.02 322), oklch(92% 0.02 322));
+  --paper: light-dark(oklch(98% 0.01 322), oklch(12% 0.02 322));
+  --accent: oklch(60% 0.15 322);
+}
+
+.promo * {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.promo {
+  background-color: var(--paper);
+  color: var(--ink);
+  font-family: "Spectral", "Source Serif Pro", Georgia, serif;
+  line-height: 1.5;
+  overflow-x: hidden;
+  container-type: inline-size;
+}
+
+.promo .hero {
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: 90vh;
+  position: relative;
+  background-color: var(--plum);
+  color: white;
+}
+
+@container (min-width: 800px) {
+  .promo .hero {
+    grid-template-columns: 1.2fr 0.8fr;
+  }
+}
+
+.promo .hero-content {
+  padding: clamp(2rem, 8vi, 6rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  z-index: 2;
+}
+
+.promo .label {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: 2rem;
+  color: var(--sea);
+}
+
+.promo h1 {
+  font-size: clamp(3rem, 12vi, 6.5rem);
+  line-height: 0.9;
+  font-weight: 400;
+  text-wrap: balance;
+  margin-bottom: 1.5rem;
+  letter-spacing: -0.02em;
+}
+
+.promo .pitch {
+  font-size: clamp(1.25rem, 3vi, 1.75rem);
+  max-inline-size: 35ch;
+  line-height: 1.3;
+  text-wrap: pretty;
+  opacity: 0.9;
+}
+
+.promo .hero-visual {
+  position: relative;
+  background-color: var(--sea);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  overflow: hidden;
+}
+
+.promo .cover-wrapper {
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 30px 60px -12px rgba(0,0,0,0.3);
+  z-index: 3;
+}
+
+.promo .cover-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2/3;
+  object-fit: cover;
+}
+
+/* Scroll Animation */
+@media (prefers-reduced-motion: no-preference) {
+  .promo .cover-wrapper {
+    animation: sail linear both;
+    animation-timeline: view();
+    animation-range: entry 10% exit 90%;
+  }
+
+  @keyframes sail {
+    from { transform: translateY(10%) rotate(-2deg); }
+    to { transform: translateY(-10%) rotate(2deg); }
+  }
+
+  .promo .fade-in {
+    animation: reveal linear both;
+    animation-timeline: view();
+    animation-range: entry 20% cover 40%;
+  }
+
+  @keyframes reveal {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+.promo .main-copy {
+  padding: clamp(3rem, 10vi, 10rem) clamp(1.5rem, 5vi, 3rem);
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 2rem;
+  position: relative;
+}
+
+.promo .vertical-author {
+  grid-column: 1 / 2;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  writing-mode: vertical-rl;
+  text-transform: uppercase;
+  font-size: clamp(4rem, 15vi, 12rem);
+  font-weight: 900;
+  color: color-mix(in oklch, var(--plum), transparent 92%);
+  user-select: none;
+  pointer-events: none;
+  line-height: 1;
+}
+
+.promo .text-block {
+  grid-column: 1 / -1;
+  max-inline-size: 62ch;
+}
+
+@container (min-width: 700px) {
+  .promo .text-block {
+    grid-column: 3 / 11;
+  }
+}
+
+/* Typographic Idea: Oversized opening glyph */
+.promo .synopsis-text::first-letter {
+  float: left;
+  font-size: 8.5rem;
+  line-height: 0.7;
+  padding-top: 0.5rem;
+  padding-right: 0.5rem;
+  color: var(--plum);
+  font-family: serif;
+}
+
+.promo .synopsis-text {
+  font-size: clamp(1.125rem, 2vi, 1.35rem);
+  margin-bottom: 2rem;
+  text-wrap: pretty;
+}
+
+.promo blockquote {
+  margin: 4rem 0;
+  padding: 3rem 0;
+  border-top: 1px solid color-mix(in oklch, var(--ink), transparent 80%);
+  border-bottom: 1px solid color-mix(in oklch, var(--ink), transparent 80%);
+}
+
+.promo blockquote p {
+  font-size: clamp(1.5rem, 4vi, 2.5rem);
+  font-style: italic;
+  line-height: 1.2;
+  text-wrap: balance;
+  color: var(--plum);
+}
+
+.promo .meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 2rem;
+  margin-top: 4rem;
+  border-top: 1px solid color-mix(in oklch, var(--ink), transparent 90%);
+  padding-top: 2rem;
+}
+
+.promo dt {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  margin-bottom: 0.5rem;
+}
+
+.promo dd {
+  font-size: 1.125rem;
+  font-weight: 500;
+}
+
+/* Micro-interactions */
+.promo .cover-wrapper:hover {
+  transform: scale(1.02) !important;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+</style>
+</head>
+<body>
+
+<article class="promo">
+  <header class="hero">
+    <div class="hero-content">
+      <p class="label">Episk dikt &bull; Homer</p>
+      <h1>Sangen om Odyssevs</h1>
+      <p class="pitch">Odysseen er en grunnpilar i den vestlige kanon og er en drivende godt fortalt historie nyoversatt til moderne og leservennlig norsk.</p>
+    </div>
+    <div class="hero-visual">
+      <div class="cover-wrapper">
+        <img src="https://images.cdn.europe-west1.gcp.commercetools.com/b0c1af64-23c6-499f-8892-0976d37c1c31/default-0ZbMdyVA-large.jpg" 
+             alt="Bokomslag: Sangen om Odyssevs av Homer" 
+             class="cover-img">
+      </div>
+    </div>
+  </header>
+
+  <section class="main-copy">
+    <div class="vertical-author" aria-hidden="true">HOMER</div>
+    
+    <div class="text-block">
+      <p class="synopsis-text">
+        Odysseen er det yngste av de to homeriske heltediktene som innleder hele vår europeiske litteratur. På mange språk har odyssé blitt et synonym for en lang reise mot et fjernt mål. Dette mektige eposet skildrer Odyssevs' strabasiøse hjemferd etter Trojanerkrigen og hjemkomsten til Ithaka. 
+      </p>
+      
+      <p class="synopsis-text">
+        Odyssevs forteller om hva som har skjedd ham under hjemferden som har tatt 10 år. Han har blant annet blitt holdt tilbake av en nymfe, besøkt underverdenen og møtt to kykloper. På Ithaka venter Penelope, hans hustru.
+      </p>
+
+      <blockquote class="fade-in">
+        <p>«En drivende godt fortalt historie nyoversatt til moderne og leservennlig norsk.»</p>
+      </blockquote>
+
+      <p class="synopsis-text">
+        Odysseen er første bok i en serie med oversettelser av klassiske greske og latinske verk. De oversettes alle på nytt eller for første gang av Kjell Arild Pollestad, som bringer Homers udødelige vers inn i vår tid med kraft og klarhet.
+      </p>
+
+      <dl class="meta-grid">
+        <div>
+          <dt>Forfatter</dt>
+          <dd>Homer</dd>
+        </div>
+        <div>
+          <dt>Oversetter</dt>
+          <dd>Kjell Arild Pollestad</dd>
+        </div>
+        <div>
+          <dt>Sjanger</dt>
+          <dd>Episk dikt</dd>
+        </div>
+        <div>
+          <dt>Format</dt>
+          <dd>Innbundet</dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+</article>
+
+</body>
+</html>>

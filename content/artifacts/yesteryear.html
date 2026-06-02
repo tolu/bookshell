@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+  <meta charset="utf-8">
+  <title>"Yesteryear"</title>
+  <style>
+    /* 
+      DESIGN IDEA: A "torn" asymmetric layout where structural elements overlap with jagged edges, mirroring the cover's physical rip between the pastoral 1850s and the modern influencer.
+      PALETTE: Harmonizing with the cover's 'Yesteryear' yellow (oklch(88% 0.18 95)) and the sky blue backdrop (oklch(85% 0.05 240)), with a deep "Ink" for editorial authority.
+      TYPOGRAPHIC IDEA: A massive, structural initial 'Y' glyph that serves as a framing device for the synopsis, bridging the gap between serif and sans.
+    */
+
+    .promo * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :scope {
+      --ink: light-dark(oklch(15% 0.02 240), oklch(95% 0.01 240));
+      --paper: light-dark(oklch(98% 0.01 240), oklch(12% 0.02 240));
+      --accent: oklch(88% 0.18 95);
+      --accent-dim: oklch(85% 0.05 240);
+      --step-0: clamp(1rem, 0.96rem + 0.22vw, 1.125rem);
+      --step-1: clamp(1.25rem, 1.14rem + 0.54vw, 1.563rem);
+      --step-2: clamp(1.563rem, 1.36rem + 1.01vw, 2.188rem);
+      --step-3: clamp(1.953rem, 1.61rem + 1.73vw, 3.063rem);
+      --step-4: clamp(2.441rem, 1.89rem + 2.76vw, 4.288rem);
+      --step-5: clamp(3.052rem, 2.2rem + 4.26vw, 6.003rem);
+    }
+
+    .promo {
+      background-color: var(--paper);
+      color: var(--ink);
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      line-height: 1.5;
+      overflow-x: hidden;
+      container-type: inline-size;
+    }
+
+    .promo h1, .promo h2, .promo blockquote {
+      font-family: "Spectral", "Source Serif Pro", Georgia, serif;
+      font-weight: 400;
+      text-wrap: balance;
+    }
+
+    .promo p {
+      text-wrap: pretty;
+      max-inline-size: 62ch;
+    }
+
+    /* Hero Section */
+    .promo .hero {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      min-height: 90vh;
+      align-items: center;
+      padding: 2rem;
+      position: relative;
+    }
+
+    .promo .hero-title-group {
+      grid-column: 1 / -1;
+      z-index: 3;
+      pointer-events: none;
+    }
+
+    .promo .hero h1 {
+      font-size: var(--step-5);
+      line-height: 0.8;
+      text-transform: uppercase;
+      letter-spacing: -0.05em;
+      margin-bottom: 0.5rem;
+    }
+
+    .promo .author {
+      font-size: var(--step-1);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--accent);
+      background: var(--ink);
+      display: inline-block;
+      padding: 0.2em 0.5em;
+    }
+
+    .promo .cover-art {
+      grid-column: 5 / 13;
+      grid-row: 1;
+      position: relative;
+      width: 100%;
+      height: 70vh;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .promo .cover-image {
+      width: auto;
+      height: 100%;
+      object-fit: contain;
+      box-shadow: 30px 30px 60px color-mix(in oklch, var(--ink), transparent 80%);
+      transform-origin: bottom right;
+    }
+
+    /* Torn Effect via Mask/Clip */
+    .promo .torn-divider {
+      position: absolute;
+      bottom: -2px;
+      left: 0;
+      width: 100%;
+      height: 100px;
+      background: var(--paper);
+      clip-path: polygon(0 40%, 15% 60%, 35% 30%, 50% 70%, 65% 20%, 85% 80%, 100% 40%, 100% 100%, 0 100%);
+      z-index: 4;
+    }
+
+    /* Content Layout */
+    .promo .content-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 2rem;
+      padding: 4rem 2rem;
+    }
+
+    .promo .pitch-lead {
+      grid-column: 1 / -1;
+      font-size: var(--step-3);
+      line-height: 1.1;
+      border-left: 8px solid var(--accent);
+      padding-left: 1.5rem;
+      margin-bottom: 3rem;
+    }
+
+    .promo .synopsis-section {
+      grid-column: 1 / 13;
+      position: relative;
+    }
+
+    @container (min-width: 800px) {
+      .promo .synopsis-section {
+        grid-column: 4 / 11;
+      }
+      .promo .hero-title-group {
+        grid-column: 1 / 8;
+      }
+      .promo .cover-art {
+        grid-column: 7 / 13;
+      }
+    }
+
+    .promo .drop-cap-y {
+      float: left;
+      font-family: "Spectral", Georgia, serif;
+      font-size: 12rem;
+      line-height: 0.8;
+      margin-right: 0.1em;
+      margin-top: -0.1em;
+      color: var(--accent);
+      user-select: none;
+    }
+
+    .promo .synopsis-text {
+      font-size: var(--step-1);
+      margin-bottom: 2rem;
+    }
+
+    .promo .question-box {
+      background: var(--accent-dim);
+      padding: 3rem;
+      margin: 4rem 0;
+      position: relative;
+      border: 1px solid color-mix(in oklch, var(--ink), transparent 90%);
+    }
+
+    .promo .question-box h2 {
+      font-size: var(--step-2);
+      font-style: italic;
+    }
+
+    /* Metadata List */
+    .promo .metadata {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 2rem;
+      padding: 3rem;
+      background: var(--ink);
+      color: var(--paper);
+      margin-top: 4rem;
+    }
+
+    .promo .metadata dt {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      opacity: 0.7;
+      margin-bottom: 0.5rem;
+    }
+
+    .promo .metadata dd {
+      font-size: var(--step-0);
+      font-weight: 500;
+    }
+
+    /* Motion */
+    @media (prefers-reduced-motion: no-preference) {
+      .promo .cover-image {
+        animation: float-and-scale linear both;
+        animation-timeline: view();
+        animation-range: entry 10% exit 90%;
+      }
+
+      @keyframes float-and-scale {
+        from { transform: translateY(5%) scale(0.95) rotate(-2deg); }
+        to { transform: translateY(-5%) scale(1.05) rotate(1deg); }
+      }
+
+      .promo .pitch-lead {
+        animation: slide-in-reveal both;
+        animation-timeline: view();
+        animation-range: entry 10% cover 40%;
+      }
+
+      @keyframes slide-in-reveal {
+        from { opacity: 0; transform: translateX(-30px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+
+      .promo .drop-cap-y {
+        transition: color 0.6s ease;
+      }
+      .promo .drop-cap-y:hover {
+        color: var(--ink);
+      }
+      
+      .promo .question-box {
+        animation: lift-fade both;
+        animation-timeline: view();
+        animation-range: entry 5% cover 30%;
+      }
+      
+      @keyframes lift-fade {
+        from { opacity: 0; transform: translateY(40px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+    }
+
+    /* Accessible Focus */
+    .promo *:focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 4px;
+    }
+  </style>
+</head>
+<body>
+  <article class="promo">
+    <header class="hero">
+      <div class="hero-title-group">
+        <p class="author">Caro Claire Burke</p>
+        <h1>Yester-<br>year</h1>
+      </div>
+      
+      <figure class="cover-art">
+        <img 
+          src="https://www.cappelendamm.no/_next/image?url=https%3A%2F%2Fmedia.crystallize.com%2Fcada-netthandel-prod%2F26%2F3%2F22%2F1137e275%2F9788202851064-a68c621e-1aef-4fb4-b6cf-956337e57615.jpeg&w=640&q=75" 
+          alt="Bokomslag for Yesteryear av Caro Claire Burke, som viser en splitt mellom et 1800-talls maleri og et moderne kvinneansikt." 
+          class="cover-image"
+        >
+        <div class="torn-divider"></div>
+      </figure>
+    </header>
+
+    <div class="content-grid">
+      <p class="pitch-lead">
+        Dette er romanen du kommer til å se overalt i år.
+      </p>
+
+      <section class="synopsis-section">
+        <span class="drop-cap-y" aria-hidden="true">Y</span>
+        <div class="synopsis-text">
+          <p>
+            <strong>Yesteryear</strong> er boken som har tatt verden med storm. Det er en underholdende og tankevekkende roman om fasader, tradisjoner, sosiale medier og livet som kvinne og mor i vår tid.
+          </p>
+          <p>
+            Med mørk humor, skarp satire og et spennende mysterium tar Caro Claire Burke leseren med inn i noen av samfunnets mørkeste og villeste deler.
+          </p>
+        </div>
+
+        <div class="question-box">
+          <h2>Hva skjer når en tradwife-influenser plutselig våkner opp i 1855?</h2>
+        </div>
+
+        <div class="synopsis-text">
+          <p>
+            Natalie er perfekt. Hun lever som tradwife på en idyllisk gård med vakre barn og en superkjekk ektemann. Hun er kvinnen alle mødre og koner skulle ønske de var. Livet sitt deler hun med millioner av følgere på sosiale medier, uten å avsløre teamet av barnepiker, produsenter og assistenter som bistår bak kamera.
+          </p>
+          <p>
+            Men det perfekte livet til Natalie tar slutt når hun en morgen våkner opp i en mørk og fremmed verden. Barna er skitne, huset har ikke strøm, og mannen hennes jobber faktisk i åkeren. Har hun blitt sendt tilbake i tid? Blir hun testet av Gud? Eller er det hele bare en spøk som har gått altfor langt?
+          </p>
+        </div>
+      </section>
+
+      <dl class="metadata">
+        <div>
+          <dt>Sjanger</dt>
+          <dd>Romaner, Krim og spenning</dd>
+        </div>
+        <div>
+          <dt>Status</dt>
+          <dd>Bestselger i USA og Storbritannia</dd>
+        </div>
+        <div>
+          <dt>Aktuelt</dt>
+          <dd>Filmatisering med Anne Hathaway</dd>
+        </div>
+        <div>
+          <dt>Rettigheter</dt>
+          <dd>Solgt til over 20 land</dd>
+        </div>
+      </dl>
+    </div>
+  </article>
+</body>
+</html>

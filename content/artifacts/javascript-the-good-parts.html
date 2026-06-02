@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<title>"JavaScript: The Good Parts"</title>
+<style>
+/* DESIGN IDEA: An asymmetric technical schematic grid utilizing rigid 1px borders and "surgical" vertical typesetting to mirror the 'scalpel' metaphor. */
+/* PALETTE: Harmonized with the O'Reilly teal. Anchor 1: oklch(62% 0.15 195) (Teal), Anchor 2: oklch(98% 0.01 90) (Paper), Anchor 3: oklch(25% 0.02 195) (Deep Ink). */
+
+:scope {
+  --teal: oklch(62% 0.15 195);
+  --teal-dark: oklch(45% 0.12 195);
+  --paper: light-dark(oklch(98% 0.01 90), oklch(15% 0.02 195));
+  --ink: light-dark(oklch(20% 0.02 195), oklch(92% 0.01 90));
+  --accent: oklch(70% 0.18 45); /* A subtle surgical copper/orange for contrast */
+  
+  --font-serif: "Spectral", "Source Serif Pro", Georgia, serif;
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Source Code Pro", monospace;
+
+  --space-unit: clamp(1rem, 2vw, 2.5rem);
+  --gutter: 1px;
+}
+
+.promo * {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.promo {
+  background-color: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-serif);
+  line-height: 1.5;
+  overflow-x: hidden;
+  container-type: inline-size;
+}
+
+.promo h1, .promo h2, .promo h3 {
+  text-wrap: balance;
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.promo p {
+  text-wrap: pretty;
+  max-inline-size: 62ch;
+}
+
+/* Layout Grid */
+.promo .grid-container {
+  display: grid;
+  grid-template-columns: 1fr;
+  border-left: var(--gutter) solid color-mix(in oklch, var(--ink), transparent 80%);
+}
+
+@container (min-width: 800px) {
+  .promo .grid-container {
+    grid-template-columns: 120px 1fr 1fr;
+  }
+}
+
+/* Hero Section */
+.promo .hero {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  border-bottom: var(--gutter) solid var(--ink);
+  min-height: 80vh;
+}
+
+.promo .hero-sidebar {
+  grid-column: 1;
+  border-right: var(--gutter) solid var(--ink);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: var(--space-unit) 0;
+  background: var(--teal);
+  color: white;
+}
+
+.promo .vertical-title {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-family: var(--font-sans);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: clamp(1.5rem, 5cqw, 3rem);
+}
+
+.promo .hero-main {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+
+.promo .hero-image-wrap {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 60%;
+  height: 100%;
+  z-index: 0;
+  opacity: 0.15;
+  filter: grayscale(1);
+}
+
+.promo .hero-image-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.promo .hero-content {
+  position: relative;
+  z-index: 1;
+  padding: var(--space-unit);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-unit);
+}
+
+.promo .label {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--teal);
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.promo h1 {
+  font-size: clamp(3rem, 12cqw, 8rem);
+  margin-top: -0.05em;
+}
+
+.promo .author-block {
+  padding: var(--space-unit);
+  border-top: var(--gutter) solid var(--ink);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.promo .author-name {
+  font-size: clamp(1.25rem, 3cqw, 2rem);
+  font-style: italic;
+}
+
+/* Pitch Section */
+.promo .pitch-section {
+  grid-column: 2 / -1;
+  padding: calc(var(--space-unit) * 2) var(--space-unit);
+  border-bottom: var(--gutter) solid var(--ink);
+}
+
+.promo .pitch-text {
+  font-size: clamp(1.5rem, 4cqw, 2.75rem);
+  line-height: 1.2;
+  color: var(--teal-dark);
+}
+
+.promo .pitch-text span {
+  color: var(--ink);
+  font-style: italic;
+}
+
+/* Main Content Split */
+.promo .content-split {
+  grid-column: 2 / -1;
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+@container (min-width: 800px) {
+  .promo .content-split {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.promo .copy-column {
+  padding: var(--space-unit);
+  border-right: var(--gutter) solid color-mix(in oklch, var(--ink), transparent 80%);
+}
+
+.promo .copy-column p + p {
+  margin-top: 1.5rem;
+}
+
+.promo .meta-column {
+  padding: var(--space-unit);
+  background-color: color-mix(in oklch, var(--teal), transparent 95%);
+}
+
+.promo dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem 2rem;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+.promo dt {
+  color: var(--teal);
+  text-transform: uppercase;
+  font-weight: bold;
+}
+
+.promo dd {
+  color: var(--ink);
+}
+
+/* Pullquote */
+.promo .quote-block {
+  grid-column: 1 / -1;
+  padding: calc(var(--space-unit) * 3) var(--space-unit);
+  background: var(--ink);
+  color: var(--paper);
+  text-align: center;
+  position: relative;
+}
+
+.promo blockquote {
+  font-size: clamp(1.25rem, 3cqw, 2rem);
+  max-inline-size: 40ch;
+  margin: 0 auto;
+}
+
+.promo blockquote::before {
+  content: "/*";
+  display: block;
+  font-family: var(--font-mono);
+  color: var(--teal);
+  margin-bottom: 1rem;
+}
+
+.promo blockquote::after {
+  content: "*/";
+  display: block;
+  font-family: var(--font-mono);
+  color: var(--teal);
+  margin-top: 1rem;
+}
+
+/* Micro-interactions & Animations */
+@media (prefers-reduced-motion: no-preference) {
+  .promo .hero-image-wrap {
+    animation: reveal-cover linear both;
+    animation-timeline: view();
+    animation-range: entry 10% cover 40%;
+  }
+
+  @keyframes reveal-cover {
+    from { transform: translateY(10%) scale(1.1); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 0.15; }
+  }
+
+  .promo .pitch-text span {
+    transition: color 0.4s ease;
+  }
+
+  .promo .pitch-text:hover span {
+    color: var(--accent);
+  }
+
+  .promo .vertical-title {
+    animation: scroll-slide linear both;
+    animation-timeline: scroll();
+  }
+
+  @keyframes scroll-slide {
+    from { transform: rotate(180deg) translateY(0); }
+    to { transform: rotate(180deg) translateY(-50px); }
+  }
+
+  .promo blockquote {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .promo .quote-block:has(blockquote:not(:empty)) {
+    view-timeline-name: --quote;
+  }
+
+  .promo blockquote {
+    animation: fade-in-up linear both;
+    animation-timeline: view();
+    animation-range: entry 20% cover 50%;
+  }
+
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(40px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+/* Accessibility */
+.promo a:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 4px;
+}
+</style>
+</head>
+<body>
+
+<article class="promo">
+  <div class="grid-container">
+    
+    <header class="hero">
+      <aside class="hero-sidebar">
+        <div class="vertical-title">The Good Parts</div>
+      </aside>
+      
+      <div class="hero-main">
+        <div class="hero-image-wrap">
+          <img src="https://m.media-amazon.com/images/I/91asIC1fRcL._AC_UF1000,1000_QL80_.jpg" alt="Original book cover featuring a butterfly illustration">
+        </div>
+        
+        <div class="hero-content">
+          <span class="label" aria-hidden="true">Comp_Sci // Edition_01</span>
+          <h1>JavaScript</h1>
+          <p class="pitch-text">A surgical extraction of <span>elegance</span> from the chaos of the web.</p>
+        </div>
+
+        <div class="author-block">
+          <span class="author-name">by Douglas Crockford</span>
+        </div>
+      </div>
+    </header>
+
+    <section class="pitch-section">
+      <h2 class="pitch-text">
+        This essential guide acts as a <span>scalpel</span>, scraping away JavaScript's dangerous quirks and baffling design flaws to leave you with a streamlined toolkit for building <span>robust software</span>.
+      </h2>
+    </section>
+
+    <div class="content-split">
+      <section class="copy-column">
+        <p>Most programming languages contain good and bad parts, but JavaScript has more than its share of the bad, having been developed and released in a hurry before it could be refined.</p>
+        <p>In <em>JavaScript: The Good Parts</em>, Crockford finally digs through the steaming pile of good intentions and blunders to give you a detailed look at all the genuinely elegant parts of JavaScript.</p>
+      </section>
+
+      <section class="meta-column">
+        <dl>
+          <dt>Focus</dt>
+          <dd>Functions, Loose Typing, Objects</dd>
+          
+          <dt>Expertise</dt>
+          <dd>Authoritative & Professional</dd>
+          
+          <dt>Format</dt>
+          <dd>Refined Technical Manual</dd>
+          
+          <dt>Outcome</dt>
+          <dd>Reliable, Readable Code</dd>
+        </dl>
+      </section>
+    </div>
+
+    <section class="quote-block">
+      <blockquote>
+        Identify the abundance of good ideas that make JavaScript an outstanding object-oriented programming language.
+      </blockquote>
+    </section>
+
+  </div>
+</article>
+
+</body>
+</html>>

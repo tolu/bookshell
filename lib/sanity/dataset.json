@@ -35,6 +35,42 @@
       "currency": "NOK",
       "availability": "InStock",
       "coverColor": "#5a3a2e"
+    },
+    {
+      "_id": "book.javascript-the-good-parts",
+      "_type": "book",
+      "title": "JavaScript: The Good Parts",
+      "subtitle": "This essential guide acts as a scalpel, scraping away JavaScript's dangerous quirks and baffling design flaws to leave you with a streamlined toolkit for building truly robust and elegant software.",
+      "author": "Douglas Crockford",
+      "isbn": "0000000000000",
+      "priceNOK": 399,
+      "currency": "NOK",
+      "availability": "PreOrder",
+      "coverColor": "#2f4a3c"
+    },
+    {
+      "_id": "book.sangen-om-odyssevs",
+      "_type": "book",
+      "title": "Sangen om Odyssevs",
+      "subtitle": "Odysseen er en grunnpilar i den vestlige kanon og er en drivende godt fortalt historie nyoversatt til moderne og leservennlig norsk.",
+      "author": "Homer",
+      "isbn": "0000000000000",
+      "priceNOK": 399,
+      "currency": "NOK",
+      "availability": "PreOrder",
+      "coverColor": "#2f4a3c"
+    },
+    {
+      "_id": "book.yesteryear",
+      "_type": "book",
+      "title": "Yesteryear",
+      "subtitle": "Dette er romanen du kommer til å se overalt i år.",
+      "author": "Caro Claire Burke",
+      "isbn": "0000000000000",
+      "priceNOK": 399,
+      "currency": "NOK",
+      "availability": "PreOrder",
+      "coverColor": "#2f4a3c"
     }
   ],
   "bookReleases": [
@@ -84,6 +120,54 @@
         "title": "Fjellet som husket — Tobias Aune",
         "description": "Fortellinger fra en off-grid tilværelse i den norske fjellheimen.",
         "ogImage": "/og/fjellet.jpg"
+      }
+    },
+    {
+      "_id": "release.javascript-the-good-parts",
+      "_type": "bookRelease",
+      "slug": "javascript-the-good-parts",
+      "status": "published",
+      "publishedAt": "2026-06-02T05:10:18.898Z",
+      "template": "ai-generated",
+      "version": 1,
+      "bookRef": "book.javascript-the-good-parts",
+      "artifactRef": "javascript-the-good-parts.html",
+      "seo": {
+        "title": "JavaScript: The Good Parts — Douglas Crockford",
+        "description": "This essential guide acts as a scalpel, scraping away JavaScript's dangerous quirks and baffling design flaws to leave you with a streamlined toolkit for building truly robust and elegant software.",
+        "ogImage": ""
+      }
+    },
+    {
+      "_id": "release.sangen-om-odyssevs",
+      "_type": "bookRelease",
+      "slug": "sangen-om-odyssevs",
+      "status": "published",
+      "publishedAt": "2026-06-02T05:24:08.463Z",
+      "template": "ai-generated",
+      "version": 1,
+      "bookRef": "book.sangen-om-odyssevs",
+      "artifactRef": "sangen-om-odyssevs.html",
+      "seo": {
+        "title": "Sangen om Odyssevs — Homer",
+        "description": "Odysseen er en grunnpilar i den vestlige kanon og er en drivende godt fortalt historie nyoversatt til moderne og leservennlig norsk.",
+        "ogImage": ""
+      }
+    },
+    {
+      "_id": "release.yesteryear",
+      "_type": "bookRelease",
+      "slug": "yesteryear",
+      "status": "published",
+      "publishedAt": "2026-06-02T05:35:12.291Z",
+      "template": "ai-generated",
+      "version": 1,
+      "bookRef": "book.yesteryear",
+      "artifactRef": "yesteryear.html",
+      "seo": {
+        "title": "Yesteryear — Caro Claire Burke",
+        "description": "Dette er romanen du kommer til å se overalt i år.",
+        "ogImage": ""
       }
     }
   ]
