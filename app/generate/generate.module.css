@@ -205,6 +205,12 @@
   font-style: italic;
   font-size: 0.88rem;
 }
+.streamMeta {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.8rem;
+  color: var(--shell-muted);
+  letter-spacing: 0.04em;
+}
 @keyframes streamPulse {
   0%, 100% { opacity: 0.35; transform: scale(0.85); }
   50%      { opacity: 1;    transform: scale(1.05); }

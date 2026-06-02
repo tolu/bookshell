@@ -93,7 +93,7 @@ ANTI-CLICHÉS (do not produce)
 
 OUTPUT FORMAT — STRICT
 
-Return ONLY the raw HTML document. No markdown code fences. No commentary before or after. The first character of your output MUST be \`<\` and the last MUST be \`>\`.
+Return ONLY the raw HTML document. No markdown code fences. No commentary before or after. Your output must begin with \`<!DOCTYPE html>\` and end with \`</html>\` — nothing before, nothing after, not even a newline or stray character.
 
 Required structure:
 1. <!DOCTYPE html>

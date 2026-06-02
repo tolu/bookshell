@@ -46,11 +46,21 @@ type Status =
   | { kind: "saved"; html: string; previewUrl: string }
   | { kind: "error"; message: string; html?: string };
 
-// Strip a fenced code block if the model emits one despite the prompt.
+// Strip a fenced code block if and only if the ENTIRE response is wrapped in
+// one. A loose regex would happily eat content between any two backticks the
+// model emits inside the page (e.g. a code example for a book about JS), so
+// we anchor to start+end. Also trims any garbage past the closing </html>
+// (the model sometimes adds a stray ">" trying to satisfy "end with `>`").
 function stripFences(text: string): string {
-  const fenced = text.match(/```(?:html)?\s*\n?([\s\S]*?)```/i);
-  if (fenced?.[1]) return fenced[1].trim();
-  return text.trim();
+  const trimmed = text.trim();
+  const opening = /^```(?:html)?\s*\n/i;
+  const closing = /\n```\s*$/;
+  if (opening.test(trimmed) && closing.test(trimmed)) {
+    return trimmed.replace(opening, "").replace(closing, "").trim();
+  }
+  const end = trimmed.toLowerCase().lastIndexOf("</html>");
+  if (end !== -1) return trimmed.slice(0, end + "</html>".length);
+  return trimmed;
 }
 
 // Catch hallucinated URLs that survived the prompt's hard rule. We check the
@@ -352,23 +362,19 @@ export function GenerateForm() {
           </div>
         </header>
         <div className={styles.frameWrap}>
-          {html ? (
-            <>
-              <iframe
-                className={styles.frame}
-                sandbox=""
-                srcDoc={html}
-                title="Forhåndsvisning av generert side"
-              />
-              {streaming && (
-                <div className={styles.streamOverlay} aria-live="polite">
-                  <span className={styles.streamDot} />
-                  <span key={status.label} className={styles.streamLabel}>
-                    {status.label}
-                  </span>
-                </div>
-              )}
-            </>
+          {/* The iframe is only mounted when generation is COMPLETE. Updating
+              srcDoc on every streaming token thrashed the iframe's internal
+              navigation queue and left it blank at the end. The `key` ties
+              to the final HTML length so a regeneration mounts a fresh
+              iframe instance, guaranteeing a clean parse. */}
+          {!streaming && html ? (
+            <iframe
+              key={`final-${html.length}`}
+              className={styles.frame}
+              sandbox=""
+              srcDoc={html}
+              title="Forhåndsvisning av generert side"
+            />
           ) : (
             <div className={styles.empty}>
               {streaming ? (
@@ -376,6 +382,11 @@ export function GenerateForm() {
                   <span className={styles.streamDot} aria-hidden="true" />
                   <span key={status.label} className={styles.streamLabel}>
                     {status.label}
+                  </span>
+                  <span className={styles.streamMeta}>
+                    {status.html.length > 0
+                      ? `${status.html.length.toLocaleString("nb-NO")} tegn mottatt`
+                      : ""}
                   </span>
                   <span
                     key={`fallback-${fallbackIdx}`}
