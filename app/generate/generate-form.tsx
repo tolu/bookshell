@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styles from "./generate.module.css";
 
 type FormState = {
@@ -23,44 +23,157 @@ const EMPTY: FormState = {
 
 const LONG_LIMIT = 2000;
 
+// Fallback status messages cycled while the route hasn't sent its own.
+// Real status events from the route (cover fetch, prompt, first tokens)
+// take precedence — these only fill silent gaps so the user doesn't think
+// the request stalled.
+const FALLBACK_MESSAGES = [
+  "Strekker fingrene…",
+  "Tenker på fargepaletten…",
+  "Skisser ut komposisjonen…",
+  "Velger typografisk hovedgrep…",
+  "Vekter hierarkiet…",
+  "Lager hover-animasjoner…",
+  "Skrur til kontrastene…",
+  "Polerer kantene…",
+];
+
 type Status =
   | { kind: "idle" }
-  | { kind: "generating" }
-  | { kind: "generated"; html: string }
+  | { kind: "streaming"; label: string; html: string }
+  | { kind: "generated"; html: string; warnings: string[] }
   | { kind: "saving"; html: string }
   | { kind: "saved"; html: string; previewUrl: string }
   | { kind: "error"; message: string; html?: string };
 
+// Strip a fenced code block if the model emits one despite the prompt.
+function stripFences(text: string): string {
+  const fenced = text.match(/```(?:html)?\s*\n?([\s\S]*?)```/i);
+  if (fenced?.[1]) return fenced[1].trim();
+  return text.trim();
+}
+
+// Catch hallucinated URLs that survived the prompt's hard rule. We check the
+// final output (not the streaming buffer) so partial chunks don't trip it.
+function checkHtml(html: string, allowedCoverUrl: string | null): string[] {
+  const warnings: string[] = [];
+  if (!html.toLowerCase().includes("<!doctype html")) warnings.push("Mangler <!DOCTYPE>.");
+  if (!html.includes("<article")) warnings.push("Mangler <article>.");
+  if (/<script\b/i.test(html)) warnings.push("Inneholder <script> (vil bli fjernet).");
+  if (/<link\b/i.test(html)) warnings.push("Inneholder <link> (vil ikke laste).");
+
+  const urlPattern = /https?:\/\/[^\s"'()<>]+/gi;
+  const seen = new Set<string>();
+  const allowed = allowedCoverUrl ?? "";
+  let m: RegExpExecArray | null;
+  while ((m = urlPattern.exec(html)) !== null) {
+    const url = m[0].replace(/[.,;)]+$/, "");
+    if (url === allowed) continue;
+    if (seen.has(url)) continue;
+    seen.add(url);
+    warnings.push(`Ukjent ekstern URL: ${url}`);
+  }
+  return warnings;
+}
+
 export function GenerateForm() {
   const [form, setForm] = useState<FormState>(EMPTY);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [fallbackIdx, setFallbackIdx] = useState(0);
+
+  // Cycle fallback messages every 2.6s while streaming.
+  useEffect(() => {
+    if (status.kind !== "streaming") return;
+    const id = setInterval(
+      () => setFallbackIdx((i) => (i + 1) % FALLBACK_MESSAGES.length),
+      2600
+    );
+    return () => clearInterval(id);
+  }, [status.kind]);
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
 
+  // Keep the abort handle around so a re-submit cancels an in-flight stream.
+  const abortRef = useRef<AbortController | null>(null);
+
   async function onGenerate(e: React.FormEvent) {
     e.preventDefault();
-    setStatus({ kind: "generating" });
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+
+    setStatus({ kind: "streaming", label: "Starter…", html: "" });
+
+    let res: Response;
     try {
-      const res = await fetch("/api/generate", {
+      res = await fetch("/api/generate", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(form),
+        signal: ctrl.signal,
       });
-      const json = await res.json();
-      if (!res.ok) {
-        setStatus({ kind: "error", message: json.error ?? "Generation failed", html: json.html });
-        return;
-      }
-      setStatus({ kind: "generated", html: json.html });
     } catch (err) {
+      if ((err as Error).name === "AbortError") return;
       setStatus({ kind: "error", message: (err as Error).message });
+      return;
+    }
+
+    if (!res.ok || !res.body) {
+      const j = await res.json().catch(() => ({}));
+      setStatus({ kind: "error", message: j.error ?? `HTTP ${res.status}` });
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    let html = "";
+    let currentLabel = "Starter…";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let nl: number;
+      while ((nl = buf.indexOf("\n")) !== -1) {
+        const line = buf.slice(0, nl);
+        buf = buf.slice(nl + 1);
+        if (!line.trim()) continue;
+        let frame: { type: string; [k: string]: unknown };
+        try {
+          frame = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (frame.type === "status" && typeof frame.label === "string") {
+          currentLabel = frame.label;
+          setStatus({ kind: "streaming", label: currentLabel, html });
+        } else if (frame.type === "token" && typeof frame.text === "string") {
+          html += frame.text;
+          setStatus({ kind: "streaming", label: currentLabel, html });
+        } else if (frame.type === "error" && typeof frame.message === "string") {
+          setStatus({ kind: "error", message: frame.message, html });
+          return;
+        } else if (frame.type === "done") {
+          const final = stripFences(html);
+          const warnings = checkHtml(final, form.imageUrl.trim() || null);
+          setStatus({ kind: "generated", html: final, warnings });
+          return;
+        }
+      }
+    }
+
+    // Stream ended without a `done` frame — treat what we have as final.
+    if (html) {
+      const final = stripFences(html);
+      const warnings = checkHtml(final, form.imageUrl.trim() || null);
+      setStatus({ kind: "generated", html: final, warnings });
     }
   }
 
   async function onSave() {
-    if (status.kind !== "generated" && status.kind !== "error") return;
-    const html = status.kind === "generated" ? status.html : status.html;
+    const html = currentHtml();
     if (!html) return;
     setStatus({ kind: "saving", html });
     try {
@@ -86,15 +199,36 @@ export function GenerateForm() {
     }
   }
 
-  const longRemaining = LONG_LIMIT - form.longText.length;
-  const generating = status.kind === "generating";
+  function openInNewTab() {
+    const html = currentHtml();
+    if (!html) return;
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, "_blank", "noopener,noreferrer");
+    // Revoke after the new tab has had time to navigate. If `open` was
+    // blocked, revoke immediately so we don't leak.
+    setTimeout(() => URL.revokeObjectURL(url), w ? 60_000 : 0);
+  }
+
+  function currentHtml(): string | undefined {
+    switch (status.kind) {
+      case "streaming":
+      case "generated":
+      case "saving":
+      case "saved":
+        return status.html;
+      case "error":
+        return status.html;
+      default:
+        return undefined;
+    }
+  }
+
+  const html = currentHtml();
+  const streaming = status.kind === "streaming";
   const saving = status.kind === "saving";
-  const html =
-    status.kind === "generated" || status.kind === "saving" || status.kind === "saved"
-      ? status.html
-      : status.kind === "error"
-        ? status.html
-        : undefined;
+  const longRemaining = LONG_LIMIT - form.longText.length;
+  const warnings = status.kind === "generated" ? status.warnings : [];
 
   return (
     <div className={styles.layout}>
@@ -161,10 +295,10 @@ export function GenerateForm() {
           />
         </label>
         <div className={styles.actions}>
-          <button type="submit" className={styles.primary} disabled={generating || saving}>
-            {generating ? "Genererer…" : "Generer side"}
+          <button type="submit" className={styles.primary} disabled={streaming || saving}>
+            {streaming ? "Genererer…" : "Generer side"}
           </button>
-          {html && (
+          {html && status.kind !== "streaming" && (
             <button
               type="button"
               className={styles.secondary}
@@ -183,35 +317,76 @@ export function GenerateForm() {
             Lagret. <a href={status.previewUrl}>Åpne utgivelsessiden →</a>
           </p>
         )}
+        {warnings.length > 0 && (
+          <ul className={styles.warnings}>
+            {warnings.map((w) => (
+              <li key={w}>⚠ {w}</li>
+            ))}
+          </ul>
+        )}
       </form>
 
       <aside className={styles.preview}>
         <header className={styles.previewHead}>
           <span>Forhåndsvisning</span>
-          {html && (
-            <button
-              type="button"
-              className={styles.copy}
-              onClick={() => navigator.clipboard.writeText(html)}
-            >
-              Kopier HTML
-            </button>
-          )}
+          <div className={styles.previewActions}>
+            {html && (
+              <>
+                <button
+                  type="button"
+                  className={styles.previewBtn}
+                  onClick={openInNewTab}
+                  title="Åpne i ny fane for full bredde"
+                >
+                  Full størrelse ↗
+                </button>
+                <button
+                  type="button"
+                  className={styles.previewBtn}
+                  onClick={() => navigator.clipboard.writeText(html)}
+                >
+                  Kopier HTML
+                </button>
+              </>
+            )}
+          </div>
         </header>
         <div className={styles.frameWrap}>
           {html ? (
-            <iframe
-              key={html.slice(0, 64)}
-              className={styles.frame}
-              sandbox=""
-              srcDoc={html}
-              title="Forhåndsvisning av generert side"
-            />
+            <>
+              <iframe
+                className={styles.frame}
+                sandbox=""
+                srcDoc={html}
+                title="Forhåndsvisning av generert side"
+              />
+              {streaming && (
+                <div className={styles.streamOverlay} aria-live="polite">
+                  <span className={styles.streamDot} />
+                  <span key={status.label} className={styles.streamLabel}>
+                    {status.label}
+                  </span>
+                </div>
+              )}
+            </>
           ) : (
             <div className={styles.empty}>
-              {generating
-                ? "Gemini jobber — dette tar 10–25 sekunder."
-                : "Fyll inn skjemaet og trykk Generer."}
+              {streaming ? (
+                <>
+                  <span className={styles.streamDot} aria-hidden="true" />
+                  <span key={status.label} className={styles.streamLabel}>
+                    {status.label}
+                  </span>
+                  <span
+                    key={`fallback-${fallbackIdx}`}
+                    className={styles.streamFallback}
+                  >
+                    {FALLBACK_MESSAGES[fallbackIdx]}
+                  </span>
+                </>
+              ) : (
+                "Fyll inn skjemaet og trykk Generer."
+              )}
             </div>
           )}
         </div>

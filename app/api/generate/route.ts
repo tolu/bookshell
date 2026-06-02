@@ -3,7 +3,8 @@ import { getGenAI, GENERATION_MODEL } from "@/lib/gemini/client";
 import { buildPrompt, type GenerateInput } from "@/lib/gemini/prompt";
 
 export const runtime = "nodejs";
-// Generation can take 10–30s on gemini-2.5-pro. Vercel functions default to 10s.
+// Generation can take 10–30s on gemini-3-flash-preview. Vercel functions
+// default to 10s.
 export const maxDuration = 60;
 
 type Body = {
@@ -21,7 +22,7 @@ const ALLOWED_IMAGE_MIME = new Set([
   "image/webp",
   "image/gif",
 ]);
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8 MB — Gemini inline limit is ~20 MB; this is a safety cap.
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 async function fetchImagePart(url: string): Promise<{ mimeType: string; data: string } | null> {
   let parsed: URL;
@@ -51,19 +52,18 @@ async function fetchImagePart(url: string): Promise<{ mimeType: string; data: st
   return { mimeType, data: Buffer.from(buf).toString("base64") };
 }
 
-// Strip markdown code fences if the model emits them despite the prompt.
-function stripFences(text: string): string {
-  const fenced = text.match(/```(?:html)?\s*\n?([\s\S]*?)```/i);
-  if (fenced?.[1]) return fenced[1].trim();
-  return text.trim();
-}
+// Streaming protocol: NDJSON lines. The client reads one line per event.
+// Status frames give the user real progress info during the slow parts of
+// the request (cover fetch, awaiting first token). Token frames carry the
+// model output as it streams. Done/error frames close.
+type Frame =
+  | { type: "status"; label: string }
+  | { type: "token"; text: string }
+  | { type: "done" }
+  | { type: "error"; message: string };
 
-function validateHtml(html: string): { ok: true } | { ok: false; reason: string } {
-  if (!html.toLowerCase().includes("<!doctype html")) return { ok: false, reason: "missing DOCTYPE" };
-  if (!html.includes("<article")) return { ok: false, reason: "missing <article>" };
-  if (/<script\b/i.test(html)) return { ok: false, reason: "contains <script>" };
-  if (/<link\b/i.test(html)) return { ok: false, reason: "contains <link>" };
-  return { ok: true };
+function frame(f: Frame): Uint8Array {
+  return new TextEncoder().encode(JSON.stringify(f) + "\n");
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -91,66 +91,77 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ error: "longText exceeds 2000 characters" }, { status: 400 });
   }
 
-  let coverPart: { mimeType: string; data: string } | null = null;
-  if (imageUrl) {
-    try {
-      coverPart = await fetchImagePart(imageUrl);
-    } catch (err) {
-      return NextResponse.json(
-        { error: `Cover image could not be loaded: ${(err as Error).message}` },
-        { status: 400 }
-      );
-    }
-  }
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (f: Frame) => controller.enqueue(frame(f));
+      try {
+        let coverPart: { mimeType: string; data: string } | null = null;
+        if (imageUrl) {
+          send({ type: "status", label: "Henter omslagsbilde…" });
+          try {
+            coverPart = await fetchImagePart(imageUrl);
+          } catch (err) {
+            send({
+              type: "error",
+              message: `Omslagsbildet kunne ikke lastes: ${(err as Error).message}`,
+            });
+            controller.close();
+            return;
+          }
+        }
 
-  const input: GenerateInput = {
-    title,
-    author,
-    genre,
-    description,
-    longText,
-    // Only pass the URL if we successfully fetched it. A URL the model can
-    // see but we couldn't fetch is just an invitation to hallucinate.
-    coverImageUrl: coverPart && imageUrl ? imageUrl : null,
-  };
-  const prompt = buildPrompt(input);
+        const input: GenerateInput = {
+          title,
+          author,
+          genre,
+          description,
+          longText,
+          coverImageUrl: coverPart && imageUrl ? imageUrl : null,
+        };
+        const prompt = buildPrompt(input);
 
-  const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
-    { text: prompt },
-  ];
-  if (coverPart) parts.push({ inlineData: coverPart });
+        const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
+          { text: prompt },
+        ];
+        if (coverPart) parts.push({ inlineData: coverPart });
 
-  let html: string;
-  try {
-    const ai = getGenAI();
-    const res = await ai.models.generateContent({
-      model: GENERATION_MODEL,
-      contents: [{ role: "user", parts }],
-      config: {
-        temperature: 0.95,
-        // Headroom for a full HTML doc + design comments. 2.5 Pro caps at 65k.
-        maxOutputTokens: 16000,
-      },
-    });
-    const text = res.text;
-    if (!text) {
-      return NextResponse.json({ error: "Empty response from model" }, { status: 502 });
-    }
-    html = stripFences(text);
-  } catch (err) {
-    return NextResponse.json(
-      { error: `Generation failed: ${(err as Error).message}` },
-      { status: 500 }
-    );
-  }
+        send({ type: "status", label: "Sender prompt til Gemini…" });
 
-  const validation = validateHtml(html);
-  if (!validation.ok) {
-    return NextResponse.json(
-      { error: `Generated HTML failed validation: ${validation.reason}`, html },
-      { status: 502 }
-    );
-  }
+        const ai = getGenAI();
+        const result = await ai.models.generateContentStream({
+          model: GENERATION_MODEL,
+          contents: [{ role: "user", parts }],
+          config: { temperature: 0.95, maxOutputTokens: 16000 },
+        });
 
-  return NextResponse.json({ html });
+        send({ type: "status", label: "Venter på første tokens…" });
+
+        let firstChunk = true;
+        for await (const chunk of result) {
+          const text = chunk.text;
+          if (!text) continue;
+          if (firstChunk) {
+            send({ type: "status", label: "Genererer markup…" });
+            firstChunk = false;
+          }
+          send({ type: "token", text });
+        }
+
+        send({ type: "done" });
+      } catch (err) {
+        send({ type: "error", message: (err as Error).message });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "content-type": "application/x-ndjson; charset=utf-8",
+      "cache-control": "no-store",
+      // Prevent intermediaries from buffering the stream.
+      "x-accel-buffering": "no",
+    },
+  });
 }

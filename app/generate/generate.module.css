@@ -129,12 +129,14 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 0.75rem;
   color: var(--shell-muted);
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.14em;
 }
-.copy {
+.previewActions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.previewBtn {
   font-family: var(--font-sans);
   font-size: 0.8rem;
   background: transparent;
@@ -145,10 +147,12 @@
   cursor: pointer;
   letter-spacing: 0;
   text-transform: none;
+  transition: color 0.16s, border-color 0.16s;
 }
-.copy:hover { color: var(--shell-ink); border-color: var(--shell-ink); }
+.previewBtn:hover { color: var(--shell-ink); border-color: var(--shell-ink); }
 
 .frameWrap {
+  position: relative;
   border: 1px solid var(--shell-line);
   border-radius: 12px;
   overflow: hidden;
@@ -161,8 +165,68 @@
 .empty {
   display: grid;
   place-items: center;
+  gap: 0.75rem;
   padding: 2rem;
   text-align: center;
   color: var(--shell-muted);
   font-size: 0.95rem;
+}
+
+/* Live progress overlay shown on the iframe while tokens stream in. */
+.streamOverlay {
+  position: absolute;
+  inset-block-end: 0.75rem;
+  inset-inline: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.85rem;
+  background: color-mix(in oklch, var(--shell-ink) 88%, transparent);
+  color: var(--shell-paper);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+.streamDot {
+  inline-size: 0.55rem;
+  block-size: 0.55rem;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+  animation: streamPulse 1.4s ease-in-out infinite;
+}
+.streamLabel,
+.streamFallback {
+  animation: streamFade 0.45s ease-out;
+}
+.streamFallback {
+  color: var(--shell-muted);
+  font-style: italic;
+  font-size: 0.88rem;
+}
+@keyframes streamPulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50%      { opacity: 1;    transform: scale(1.05); }
+}
+@keyframes streamFade {
+  from { opacity: 0; transform: translateY(0.3rem); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .streamDot { animation: none; opacity: 0.7; }
+  .streamLabel, .streamFallback { animation: none; }
+}
+
+.warnings {
+  list-style: none;
+  padding: 0.8rem 1rem;
+  margin: 0;
+  background: color-mix(in oklch, var(--shell-accent) 14%, var(--shell-surface));
+  border: 1px solid color-mix(in oklch, var(--shell-accent) 40%, transparent);
+  border-radius: 8px;
+  font-size: 0.88rem;
+  color: var(--shell-ink);
+  display: grid;
+  gap: 0.3rem;
 }
