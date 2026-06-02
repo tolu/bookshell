@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { writeFile, readFile } from "node:fs/promises";
-import path from "node:path";
 import { revalidatePath } from "next/cache";
+import { getDataset, saveDataset, saveArtifact } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
@@ -27,6 +26,11 @@ function slugify(s: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, 64);
 }
+
+type Dataset = {
+  books: Array<Record<string, unknown>>;
+  bookReleases: Array<Record<string, unknown>>;
+};
 
 export async function POST(req: Request): Promise<Response> {
   let body: Body;
@@ -54,24 +58,18 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ error: "Could not derive slug from title" }, { status: 400 });
   }
 
-  const root = process.cwd();
-  const artifactPath = path.join(root, "content", "artifacts", `${slug}.html`);
-  const datasetPath = path.join(root, "lib", "sanity", "dataset.json");
+  // Write the artifact first. saveArtifact returns either a bare filename
+  // (disk mode) or a Blob URL (blob mode) — whichever is appropriate for
+  // dataset.artifactRef so the reader on the other side knows how to load it.
+  const artifactRef = await saveArtifact(slug, html);
 
-  await writeFile(artifactPath, html, "utf8");
-
-  const datasetRaw = await readFile(datasetPath, "utf8");
-  const dataset = JSON.parse(datasetRaw) as {
-    books: Array<Record<string, unknown>>;
-    bookReleases: Array<Record<string, unknown>>;
-  };
-
+  // Read-modify-write the dataset. NB: not atomic — two concurrent generations
+  // could race and one save would be lost. Acceptable for a single-author
+  // demo; a real system would use a DB.
+  const dataset = (await getDataset()) as Dataset;
   const bookId = `book.${slug}`;
   const releaseId = `release.${slug}`;
 
-  // Idempotent: if the slug already exists, update the artifact file but don't
-  // duplicate the dataset entries. In a real Sanity setup this would be a
-  // patch + new revision, not in-place mutation.
   if (!dataset.books.some((b) => b._id === bookId)) {
     dataset.books.push({
       _id: bookId,
@@ -86,7 +84,12 @@ export async function POST(req: Request): Promise<Response> {
       coverColor: "#2f4a3c",
     });
   }
-  if (!dataset.bookReleases.some((r) => r._id === releaseId)) {
+  const existingRelease = dataset.bookReleases.find((r) => r._id === releaseId);
+  if (existingRelease) {
+    // Idempotent regenerate: keep the record, just point at the new artifact.
+    existingRelease.artifactRef = artifactRef;
+    existingRelease.version = ((existingRelease.version as number) ?? 1) + 1;
+  } else {
     dataset.bookReleases.push({
       _id: releaseId,
       _type: "bookRelease",
@@ -96,7 +99,7 @@ export async function POST(req: Request): Promise<Response> {
       template: "ai-generated",
       version: 1,
       bookRef: bookId,
-      artifactRef: `${slug}.html`,
+      artifactRef,
       seo: {
         title: `${title} — ${author}`,
         description,
@@ -105,7 +108,7 @@ export async function POST(req: Request): Promise<Response> {
     });
   }
 
-  await writeFile(datasetPath, JSON.stringify(dataset, null, 2) + "\n", "utf8");
+  await saveDataset(dataset);
 
   revalidatePath("/releases");
   revalidatePath(`/releases/${slug}`);

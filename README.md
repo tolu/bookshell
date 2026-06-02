@@ -28,7 +28,7 @@ npm run dev                        # or: npm run build && npm start
 | Demo (this repo) | Production |
 |---|---|
 | `lib/sanity/dataset.json` + `releases.ts` | `@sanity/client` GROQ queries (CDN endpoint). The GROQ equivalents are in comments in `releases.ts`. |
-| `content/artifacts/*.html` read from disk | `artifactRef` is a Vercel Blob URL or Sanity file asset URL; `loadRawArtifact` already branches on `http(s)://` and does `fetch()`. |
+| `lib/storage` — disk locally, Vercel Blob when `BLOB_READ_WRITE_TOKEN` is set | Same module; could swap the Blob impl for any object store with the same four-method API. |
 | Regex sanitization + native `@scope` CSS wrapper in `lib/releases/body.ts` | Same approach if the generator is trusted; swap to `sanitize-html` + PostCSS + CSP if not. See "Sanitization" below. |
 | Build-time `generateStaticParams` | Same, plus on-demand ISR: a Sanity publish webhook calls `revalidatePath('/releases/[slug]')`. |
 
@@ -76,6 +76,27 @@ If the trust model weakens (user-submitted artifacts, a third-party generator, e
 - Add a CSP on the dynamic route — `default-src 'self'; object-src 'none'; frame-ancestors 'none'`.
 - Render in `<iframe sandbox>` — a real boundary, but you lose inline SSR and SEO.
 
+## Storage — disk locally, Vercel Blob on production
+
+The dataset and generated artifacts live behind a single module, [`lib/storage`](lib/storage). Four methods, two implementations:
+
+| | `disk.ts` (local dev) | `blob.ts` (Vercel) |
+|---|---|---|
+| `getDataset()` | reads `lib/sanity/dataset.json` | reads `dataset.json` blob; seeds it from the bundled static JSON on first request if the blob is missing |
+| `saveDataset(d)` | writes `lib/sanity/dataset.json` | writes the `dataset.json` blob with `cacheControlMaxAge: 0` |
+| `getArtifact(ref)` | bare filename → disk; URL → fetch | same |
+| `saveArtifact(slug, html)` | writes `content/artifacts/<slug>.html`, returns the filename | uploads to `artifacts/<slug>.html` blob, returns the public URL |
+
+Mode is picked at module load: `BLOB_READ_WRITE_TOKEN` set → Blob, unset → disk. Vercel injects the token automatically when you connect a Blob store to the project; locally, set it in `.env.local` to test the Blob path against the same store, or leave it unset for pure-disk dev.
+
+**Bundled artifacts stay on disk in both modes.** The five seed artifacts in `content/artifacts/` ship with the deployment (they're committed in the repo, included in the serverless function bundle). Their `artifactRef` is the bare filename — `getArtifact()` reads them from disk on Vercel too. Only artifacts generated against the deployed `/generate` go through Blob. Cheaper, faster, fewer round-trips.
+
+**First-boot seed.** On the first request after a fresh deploy, `getDataset()` `head()`s the blob, gets a `BlobNotFoundError`, reads the bundled `lib/sanity/dataset.json`, and `put()`s it as the initial blob. Subsequent requests read from Blob exclusively. **After the first seed, locally committed changes to `dataset.json` do NOT propagate to the deployment** — Blob is the source of truth. To force a re-seed, delete the `dataset.json` blob via the Vercel dashboard.
+
+Read-modify-write on `saveDataset` is **not atomic** — two concurrent `/api/save-artifact` calls could race and one save would be lost. Fine for the single-author demo behind a password; a real system would put the dataset in a DB with transactions.
+
+**Side effect of the migration:** every route that reads from storage is now dynamic (`ƒ`) rather than statically prerendered (`○` / `●`). The dataset is mutable, so reads use `cache: "no-store"` to bypass the Blob CDN. Want CDN caching back? Switch to `next: { revalidate: 30 }` in `blob.ts` and rely on `revalidatePath` to invalidate the route cache on save.
+
 ## Generating artifacts
 
 `/generate` is a form that asks Gemini for a fresh marketing artifact. The cover image (if you give a URL) is fetched server-side and sent to the model as inline data so it can read the palette.
@@ -89,9 +110,9 @@ Pipeline:
 3. The response is **streamed** as NDJSON frames over a `ReadableStream`: `status` frames at real milestones (`"Henter omslagsbilde…"`, `"Sender prompt til Gemini…"`, `"Venter på første tokens…"`, `"Genererer markup…"`), then `token` frames carrying chunks of HTML, then `done` (or `error`).
 4. The form reads frames via `getReader()`, accumulates the HTML, drives the progress UI (pulsing dot, current label, cycling fallback messages, monospace `X tegn mottatt` counter), and on `done` runs final cleanup: tighten code-fence stripping (only if the whole response is fenced), trim anything past the last `</html>`, scan for any `http(s)://` URL that isn't the supplied cover and surface those as warnings.
 5. The preview iframe is mounted **once**, after streaming finishes, keyed by `final-${html.length}` so a regeneration triggers a fresh instance. Rapid `srcDoc` updates during streaming thrashed the iframe's navigation queue and left it blank at the end — see the `fix(generate): preview iframe blank after streaming completed` commit. "Full størrelse ↗" opens the same HTML in a new tab via a Blob URL for browser-width preview, dev tools, etc.
-6. "Save as release" POSTs to `/api/save-artifact`, which writes the HTML to `content/artifacts/<slug>.html`, appends `book` + `bookRelease` (status: published) records to `dataset.json`, and calls `revalidatePath` for `/releases` and the new slug. The release is then live in the listing and shell-wrapped at `/releases/<slug>` without a rebuild.
+6. "Save as release" POSTs to `/api/save-artifact`, which calls `storage.saveArtifact(slug, html)` (disk → bare filename, Blob → public URL), reads the dataset via `storage.getDataset()`, appends `book` + `bookRelease` (status: published) records or updates an existing release's `artifactRef`, writes it back via `storage.saveDataset()`, and calls `revalidatePath` for `/releases` and the new slug. The release is then live in the listing and shell-wrapped at `/releases/<slug>` without a rebuild.
 
-The dataset is read from disk at request time (not via a static `import`), so newly saved releases show up immediately in both `next dev` and `next start`. See `lib/sanity/releases.ts`.
+The dataset is read at request time, never via a static import, so newly saved releases show up immediately. See [Storage](#storage--disk-locally-vercel-blob-on-production) above.
 
 ### Gating the generator behind a password
 
@@ -132,8 +153,9 @@ Run `git log --follow lib/gemini/prompt.ts` for the actual trail.
 ## Files worth reading first
 
 - `app/releases/[slug]/page.tsx` — ties it together (thin: resolve → fetch → compose)
-- `lib/sanity/releases.ts` — faked Sanity client; GROQ equivalents in comments; reads JSON from disk at request time
-- `lib/releases/body.ts` — fetch + sanitize + scope (the injection mechanic)
+- `lib/sanity/releases.ts` — faked Sanity client; GROQ equivalents in comments; reads via the storage module
+- `lib/storage/` — disk vs Blob dispatch (the storage facade)
+- `lib/releases/body.ts` — sanitize + scope (the injection mechanic)
 - `lib/gemini/prompt.ts` — the generation prompt
 - `app/api/generate/route.ts` — NDJSON streaming pattern over a ReadableStream
 - `app/generate/generate-form.tsx` — stream consumer, iframe mount strategy, abort-on-resubmit

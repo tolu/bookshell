@@ -1,7 +1,6 @@
 import "server-only";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { cache } from "react";
+import { getDataset } from "@/lib/storage";
 
 // ── Types ────────────────────────────────────────────────────────────────
 // These mirror what a real GROQ projection would return after dereferencing.
@@ -50,18 +49,14 @@ type RawRelease = {
 
 // ── "Client" ─────────────────────────────────────────────────────────────
 // Stands in for @sanity/client. In production these functions would issue
-// GROQ queries against the CDN endpoint. Here we read the static dataset
-// FROM DISK at request time — not via a static `import` — so that records
-// added via /api/save-artifact at runtime are immediately visible without
-// a rebuild. `cache()` keeps the read + parse deduped within a single
-// request (same dedupe behaviour real Sanity benefits from).
-
-const DATASET_PATH = path.join(process.cwd(), "lib", "sanity", "dataset.json");
+// GROQ queries against the CDN endpoint. Here we go through lib/storage,
+// which transparently dispatches to disk (local dev) or Vercel Blob
+// (production, when BLOB_READ_WRITE_TOKEN is set). `cache()` dedupes
+// across accessors within a single request.
 
 const loadDataset = cache(
   async (): Promise<{ books: Book[]; bookReleases: RawRelease[] }> => {
-    const raw = await readFile(DATASET_PATH, "utf8");
-    return JSON.parse(raw) as { books: Book[]; bookReleases: RawRelease[] };
+    return (await getDataset()) as { books: Book[]; bookReleases: RawRelease[] };
   }
 );
 

@@ -1,25 +1,10 @@
 import "server-only";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { cache } from "react";
+import { getArtifact } from "@/lib/storage";
 
-// In production `artifactRef` would be a Vercel Blob URL or a Sanity file
-// asset URL, and this would be a `fetch()`. Here it's a file read from
-// content/artifacts so the example runs without external storage.
-//
-// The contract the page depends on is just: give a ref, get back safe,
-// scoped HTML ready to drop into <main>. Storage choice is absorbed here.
-
-const ARTIFACT_DIR = path.join(process.cwd(), "content", "artifacts");
-
-async function loadRawArtifact(ref: string): Promise<string> {
-  if (ref.startsWith("http://") || ref.startsWith("https://")) {
-    const res = await fetch(ref, { next: { revalidate: 60 } });
-    if (!res.ok) throw new Error(`Artifact fetch failed: ${res.status}`);
-    return res.text();
-  }
-  return readFile(path.join(ARTIFACT_DIR, ref), "utf8");
-}
+// The contract: given an artifactRef (bare filename for bundled artifacts,
+// or a full http(s):// URL for Blob-hosted ones), return safe, scoped HTML
+// ready to drop into <main>. Storage choice is absorbed by lib/storage.
 
 // Scope the artifact's CSS using native @scope. The browser does all the work
 // — every selector inside the block is implicitly rooted at .release-artifact,
@@ -59,7 +44,7 @@ export type ReleaseBody = { html: string; scope: string };
 
 export const getReleaseBody = cache(
   async (artifactRef: string): Promise<ReleaseBody> => {
-    const raw = await loadRawArtifact(artifactRef);
+    const raw = await getArtifact(artifactRef);
     const scope = "release-artifact";
     const html = sanitizeAndScope(raw, scope);
     return { html, scope };
