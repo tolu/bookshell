@@ -54,9 +54,20 @@
   border-radius: 8px;
   padding: 0.7rem 0.85rem;
   transition: border-color 0.15s, box-shadow 0.15s;
-  field-sizing: content;
+  /* Width comes from the grid track — never from content. min-inline-size:0
+     lets the grid actually shrink the field on narrow containers. */
+  inline-size: 100%;
+  min-inline-size: 0;
 }
-.field textarea { min-block-size: 9rem; line-height: 1.55; resize: vertical; }
+.field textarea {
+  min-block-size: 9rem;
+  line-height: 1.55;
+  resize: vertical;
+  /* Vertical auto-grow as you type. inline-size:100% above keeps it from
+     growing horizontally — text wraps instead. */
+  field-sizing: content;
+  max-block-size: 26rem;
+}
 .field input:focus,
 .field textarea:focus {
   outline: none;
