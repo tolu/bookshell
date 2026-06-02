@@ -93,6 +93,18 @@ Pipeline:
 
 The dataset is read from disk at request time (not via a static `import`), so newly saved releases show up immediately in both `next dev` and `next start`. See `lib/sanity/releases.ts`.
 
+### Gating the generator behind a password
+
+Generation costs Gemini credits, so `/generate`, `/api/generate`, and `/api/save-artifact` can be gated behind a shared password. Set `GENERATE_PASSWORD` in the deployment environment (Vercel → Project Settings → Environment Variables). If the env is unset, the gate is OFF — convenient for local dev.
+
+How it works:
+
+- `proxy.ts` (Next 16's renamed middleware) runs on every request that matches `/generate/:path*`, `/api/generate`, or `/api/save-artifact`. It looks for a `bookshell_unlock` cookie and compares it to `GENERATE_PASSWORD` in constant time. Match → through. Mismatch → API requests get a `401 JSON`, browser requests redirect to `/generate/unlock?next=<original-path>`.
+- `/generate/unlock` is a single-input form. It POSTs to `/api/unlock`, which validates the password (same constant-time compare), and if it matches sets `bookshell_unlock` as an `httpOnly + secure + sameSite=strict` cookie holding the password itself.
+- The cookie value IS the password, so rotating `GENERATE_PASSWORD` invalidates every existing session on the next request. Cookie expiry is 30 days.
+
+Threat model is "stop people who don't know the password from spending my credits" — not real authentication. For more, swap in an auth provider (Vercel Authentication on Pro, Auth.js, Clerk, etc.).
+
 The prompt lives in [`lib/gemini/prompt.ts`](lib/gemini/prompt.ts). Notes on its design:
 
 - **Sets the role.** "Art director at a literary publisher whose pages have won D&AD pencils." Gives the model a higher bar than "make it nice".
@@ -125,4 +137,5 @@ Run `git log --follow lib/gemini/prompt.ts` for the actual trail.
 - `lib/gemini/prompt.ts` — the generation prompt
 - `app/api/generate/route.ts` — NDJSON streaming pattern over a ReadableStream
 - `app/generate/generate-form.tsx` — stream consumer, iframe mount strategy, abort-on-resubmit
+- `proxy.ts` — password gate for the generation endpoints (Next 16 calls it "proxy", formerly "middleware")
 - `components/release-shell.tsx` and `book-json-ld.tsx` — the SEO + buy surface

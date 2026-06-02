@@ -1,0 +1,111 @@
+.wrap {
+  display: grid;
+  place-items: center;
+  min-block-size: 60dvh;
+}
+
+.card {
+  inline-size: min(28rem, 100%);
+  background: var(--shell-surface);
+  border: 1px solid var(--shell-line);
+  border-radius: 14px;
+  padding: clamp(1.75rem, 4vw, 2.5rem);
+  display: grid;
+  gap: 1rem;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 3vw, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+
+.sub {
+  color: var(--shell-muted);
+  font-size: 0.95rem;
+  margin: 0;
+  line-height: 1.55;
+}
+
+.devNote {
+  background: color-mix(in oklch, var(--shell-accent) 14%, var(--shell-surface));
+  border: 1px solid color-mix(in oklch, var(--shell-accent) 40%, transparent);
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.85rem;
+  color: var(--shell-ink);
+  margin: 0;
+}
+.devNote code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  background: color-mix(in oklch, var(--shell-ink) 8%, transparent);
+  padding: 0.05em 0.3em;
+  border-radius: 3px;
+}
+
+.form {
+  display: grid;
+  gap: 0.85rem;
+  margin-block-start: 0.5rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.92rem;
+}
+.field > span {
+  font-weight: 500;
+  color: var(--shell-ink);
+}
+.field input {
+  font: inherit;
+  font-family: var(--font-sans);
+  color: var(--shell-ink);
+  background: var(--shell-paper);
+  border: 1px solid var(--shell-line);
+  border-radius: 8px;
+  padding: 0.7rem 0.85rem;
+  inline-size: 100%;
+  min-inline-size: 0;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.field input:focus {
+  outline: none;
+  border-color: var(--shell-brand);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--shell-brand) 24%, transparent);
+}
+
+.submit {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 0.95rem;
+  background: var(--shell-ink);
+  color: var(--shell-paper);
+  border: none;
+  border-radius: 999px;
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  transition: transform 0.14s, background 0.18s;
+}
+.submit:hover:not(:disabled) {
+  background: var(--shell-brand);
+  transform: translateY(-1px);
+}
+.submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.error {
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  background: color-mix(in oklch, #c0392b 12%, var(--shell-surface));
+  border: 1px solid color-mix(in oklch, #c0392b 40%, transparent);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: var(--shell-ink);
+}
