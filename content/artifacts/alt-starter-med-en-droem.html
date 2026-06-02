@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+<meta charset="utf-8" />
+<title>Alt starter med en drøm</title>
+<style>
+  :root {
+    --ink: #1a1a17;
+    --paper: #f4f1ea;
+    --field: #2f4a3c;
+    --field-soft: color-mix(in oklch, var(--field) 14%, var(--paper));
+    --accent: #c8a24a;
+    --measure: 62ch;
+  }
+  * { box-sizing: border-box; }
+  .promo {
+    font-family: "Spectral", Georgia, serif;
+    color: var(--ink);
+    line-height: 1.6;
+  }
+  .promo .hero {
+    --pad: clamp(2rem, 6vw, 6rem);
+    position: relative;
+    padding: clamp(4rem, 12vh, 9rem) var(--pad);
+    background:
+      radial-gradient(120% 140% at 80% 0%, color-mix(in oklch, var(--field) 30%, transparent), transparent 60%),
+      var(--field);
+    color: var(--paper);
+    overflow: clip;
+  }
+  .promo .hero h1 {
+    font-size: clamp(2.6rem, 7vw, 5.5rem);
+    line-height: 1.02;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 0 0 1rem;
+    max-inline-size: 16ch;
+    text-wrap: balance;
+  }
+  .promo .kicker {
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    font-size: 0.74rem;
+    color: var(--accent);
+    margin: 0 0 1.5rem;
+  }
+  .promo .lede {
+    font-size: clamp(1.1rem, 2.2vw, 1.45rem);
+    max-inline-size: var(--measure);
+    opacity: 0.92;
+    margin: 0;
+  }
+  .promo .body {
+    padding: clamp(3rem, 8vw, 6rem) clamp(2rem, 6vw, 6rem);
+    background: var(--paper);
+    display: grid;
+    gap: clamp(2rem, 5vw, 4rem);
+    grid-template-columns: 1fr;
+  }
+  @container (min-width: 720px) {
+    .promo .body { grid-template-columns: 1.4fr 1fr; align-items: start; }
+  }
+  .promo blockquote {
+    font-size: clamp(1.5rem, 3.5vw, 2.4rem);
+    line-height: 1.25;
+    font-weight: 500;
+    margin: 0;
+    padding-inline-start: 1.25rem;
+    border-inline-start: 3px solid var(--accent);
+    text-wrap: pretty;
+  }
+  .promo .meta {
+    background: var(--field-soft);
+    border-radius: 14px;
+    padding: 1.75rem;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    font-size: 0.95rem;
+  }
+  .promo .meta dt { text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.7rem; opacity: 0.6; margin-block-start: 1rem; }
+  .promo .meta dt:first-child { margin-block-start: 0; }
+  .promo .meta dd { margin: 0.15rem 0 0; font-weight: 500; }
+  .promo p { max-inline-size: var(--measure); }
+</style>
+</head>
+<body>
+  <article class="promo">
+    <header class="hero">
+      <p class="kicker">Ny bok · Forhåndsbestill</p>
+      <h1>Alt starter med en drøm</h1>
+      <p class="lede">Bli med landslagsspiller Antonio Nusa inn i reisen bak suksessen — fra grusbanene på Notodden til de store europeiske arenaene.</p>
+    </header>
+    <div class="body">
+      <div>
+        <blockquote>«Jeg trente når andre sov. Drømmen var aldri til forhandling.»</blockquote>
+        <p>I denne åpenhjertige fortellingen deler Nusa øyeblikkene som formet ham: de tidlige morgenene, tvilen, tapene, og menneskene som trodde på ham før noen andre gjorde det. En bok om utholdenhet, familie og det å våge å ville noe stort.</p>
+        <p>Rikt illustrert med private bilder og fortalt med en varme som gjør den til langt mer enn en idrettsbiografi.</p>
+      </div>
+      <dl class="meta">
+        <dt>Forfatter</dt><dd>Antonio Nusa</dd>
+        <dt>Sjanger</dt><dd>Biografi · Barn og ungdom</dd>
+        <dt>Sider</dt><dd>248</dd>
+        <dt>Utgivelse</dt><dd>Mai 2026</dd>
+      </dl>
+    </div>
+  </article>
+</body>
+</html>

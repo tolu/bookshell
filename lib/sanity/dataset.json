@@ -1,0 +1,90 @@
+{
+  "books": [
+    {
+      "_id": "book.nusa-droem",
+      "_type": "book",
+      "title": "Alt starter med en drøm",
+      "subtitle": "Reisen bak suksessen til Antonio Nusa",
+      "author": "Antonio Nusa",
+      "isbn": "9788205561234",
+      "priceNOK": 399,
+      "currency": "NOK",
+      "availability": "PreOrder",
+      "coverColor": "#2f4a3c"
+    },
+    {
+      "_id": "book.nordlys",
+      "_type": "book",
+      "title": "Under nordlyset",
+      "subtitle": "En roman om mørketid og håp",
+      "author": "Ingrid Solberg",
+      "isbn": "9788205569876",
+      "priceNOK": 449,
+      "currency": "NOK",
+      "availability": "InStock",
+      "coverColor": "#1d3346"
+    },
+    {
+      "_id": "book.fjellet",
+      "_type": "book",
+      "title": "Fjellet som husket",
+      "subtitle": "Fortellinger fra en off-grid tilværelse",
+      "author": "Tobias Aune",
+      "isbn": "9788205564321",
+      "priceNOK": 379,
+      "currency": "NOK",
+      "availability": "InStock",
+      "coverColor": "#5a3a2e"
+    }
+  ],
+  "bookReleases": [
+    {
+      "_id": "release.nusa-droem",
+      "_type": "bookRelease",
+      "slug": "alt-starter-med-en-droem",
+      "status": "published",
+      "publishedAt": "2026-05-12T08:00:00Z",
+      "template": "hero-editorial",
+      "version": 3,
+      "bookRef": "book.nusa-droem",
+      "artifactRef": "alt-starter-med-en-droem.html",
+      "seo": {
+        "title": "Alt starter med en drøm — Antonio Nusa",
+        "description": "Bli med landslagsspiller Antonio Nusa inn i reisen bak suksessen. Forhåndsbestill den nye boken nå.",
+        "ogImage": "/og/nusa.jpg"
+      }
+    },
+    {
+      "_id": "release.nordlys",
+      "_type": "bookRelease",
+      "slug": "under-nordlyset",
+      "status": "published",
+      "publishedAt": "2026-04-02T08:00:00Z",
+      "template": "hero-editorial",
+      "version": 1,
+      "bookRef": "book.nordlys",
+      "artifactRef": "under-nordlyset.html",
+      "seo": {
+        "title": "Under nordlyset — Ingrid Solberg",
+        "description": "En roman om mørketid og håp, fortalt fra Nord-Norge.",
+        "ogImage": "/og/nordlys.jpg"
+      }
+    },
+    {
+      "_id": "release.fjellet",
+      "_type": "bookRelease",
+      "slug": "fjellet-som-husket",
+      "status": "draft",
+      "publishedAt": null,
+      "template": "hero-editorial",
+      "version": 1,
+      "bookRef": "book.fjellet",
+      "artifactRef": "fjellet-som-husket.html",
+      "seo": {
+        "title": "Fjellet som husket — Tobias Aune",
+        "description": "Fortellinger fra en off-grid tilværelse i den norske fjellheimen.",
+        "ogImage": "/og/fjellet.jpg"
+      }
+    }
+  ]
+}

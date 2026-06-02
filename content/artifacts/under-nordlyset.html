@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+<meta charset="utf-8" />
+<title>Under nordlyset</title>
+<style>
+  :root {
+    --ink: #eef2f6;
+    --night: #14233a;
+    --aurora: #3fae8f;
+    --measure: 60ch;
+  }
+  * { box-sizing: border-box; }
+  .promo { font-family: "Spectral", Georgia, serif; color: var(--ink); line-height: 1.6; background: var(--night); }
+  .promo .hero {
+    padding: clamp(4rem, 14vh, 10rem) clamp(2rem, 6vw, 6rem);
+    background:
+      radial-gradient(90% 80% at 20% 10%, color-mix(in oklch, var(--aurora) 45%, transparent), transparent 55%),
+      radial-gradient(70% 60% at 90% 30%, color-mix(in oklch, #7a5cc0 40%, transparent), transparent 60%),
+      var(--night);
+  }
+  .promo .kicker {
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    text-transform: uppercase; letter-spacing: 0.24em; font-size: 0.72rem;
+    color: var(--aurora); margin: 0 0 1.25rem;
+  }
+  .promo h1 {
+    font-size: clamp(2.8rem, 8vw, 6rem); line-height: 1; font-weight: 600;
+    letter-spacing: -0.02em; margin: 0 0 1rem; max-inline-size: 12ch; text-wrap: balance;
+  }
+  .promo .lede { font-size: clamp(1.1rem, 2.2vw, 1.5rem); max-inline-size: var(--measure); opacity: 0.9; margin: 0; }
+  .promo .body { padding: clamp(3rem, 8vw, 6rem) clamp(2rem, 6vw, 6rem); }
+  .promo p { max-inline-size: var(--measure); font-size: 1.1rem; }
+  .promo blockquote {
+    font-size: clamp(1.4rem, 3vw, 2.2rem); line-height: 1.3; font-weight: 500;
+    margin: 2.5rem 0; padding-inline-start: 1.25rem; border-inline-start: 3px solid var(--aurora); text-wrap: pretty;
+  }
+</style>
+</head>
+<body>
+  <article class="promo">
+    <header class="hero">
+      <p class="kicker">Roman · I salg nå</p>
+      <h1>Under nordlyset</h1>
+      <p class="lede">En fortelling om mørketid og håp, om å finne lys i den lengste vinteren.</p>
+    </header>
+    <div class="body">
+      <p>I en liten fiskerlandsby nord for polarsirkelen vender Sigrid hjem etter tjue år borte. Mørketiden har lagt seg over fjorden, og med den kommer minnene hun har flyktet fra.</p>
+      <blockquote>«Nordlyset spør ikke om lov. Det bare kommer, og plutselig er ingenting helt mørkt likevel.»</blockquote>
+      <p>Ingrid Solberg skriver med en stillhet som likner landskapet selv — karrig, vakkert, og fullt av liv der man minst venter det. En roman om sorg, tilgivelse og de små lysene som bærer oss gjennom.</p>
+    </div>
+  </article>
+</body>
+</html>

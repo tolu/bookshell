@@ -1,0 +1,50 @@
+.wrap { container-type: inline-size; }
+
+/* Sticky buy bar — SEO/conversion surface owned by the shell, not the artifact */
+.bar {
+  position: sticky;
+  top: 57px; /* under the main header */
+  z-index: 8;
+  background: color-mix(in oklch, var(--shell-paper) 90%, transparent);
+  backdrop-filter: blur(8px);
+  border-block-end: 1px solid var(--shell-line);
+}
+.barInner {
+  max-inline-size: var(--shell-max);
+  margin-inline: auto;
+  padding: 0.75rem var(--shell-pad);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.back {
+  text-decoration: none;
+  color: var(--shell-muted);
+  font-size: 0.9rem;
+  margin-inline-end: auto;
+}
+.back:hover { color: var(--shell-ink); }
+.barBuy { display: flex; align-items: center; gap: 1rem; }
+.price { font-family: var(--font-display); font-weight: 600; font-size: 1.05rem; }
+
+.buy {
+  --buy-bg: var(--shell-brand);
+  --buy-fg: #fff;
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  padding: 0.65rem 1.4rem;
+  border-radius: 999px;
+  background: var(--buy-bg);
+  color: var(--buy-fg);
+  transition: transform 0.14s, background 0.18s;
+}
+.buy:hover { transform: translateY(-1px); --buy-bg: color-mix(in oklch, var(--shell-brand) 85%, black); }
+.buy[data-added="true"] { --buy-bg: #2f7d4f; }
+.buy:disabled { --buy-bg: var(--shell-line); --buy-fg: var(--shell-muted); cursor: not-allowed; transform: none; }
+
+/* The injected artifact renders full-bleed below the bar. Its own scoped
+   styles (under .release-artifact) take over from here. The shell makes no
+   assumptions about its internals beyond giving it the full content width. */

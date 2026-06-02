@@ -1,0 +1,157 @@
+.wrap { container-type: inline-size; }
+
+.head { margin-block-end: clamp(2rem, 5vw, 3rem); }
+.title {
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem, 5vw, 3.4rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.75rem;
+}
+.sub { font-size: 1.05rem; color: var(--shell-muted); max-inline-size: 60ch; margin: 0; }
+
+.keyWarn {
+  background: color-mix(in oklch, var(--shell-accent) 14%, var(--shell-surface));
+  border: 1px solid color-mix(in oklch, var(--shell-accent) 50%, transparent);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+.keyWarn code {
+  background: color-mix(in oklch, var(--shell-ink) 8%, transparent);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+
+.layout {
+  display: grid;
+  gap: clamp(1.5rem, 3vw, 2.5rem);
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+@container (min-width: 880px) {
+  .layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); }
+}
+
+.form { display: grid; gap: 1.1rem; }
+
+.field { display: grid; gap: 0.4rem; font-size: 0.92rem; }
+.field > span {
+  font-weight: 500;
+  color: var(--shell-ink);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.field input,
+.field textarea {
+  font: inherit;
+  font-family: var(--font-sans);
+  color: var(--shell-ink);
+  background: var(--shell-surface);
+  border: 1px solid var(--shell-line);
+  border-radius: 8px;
+  padding: 0.7rem 0.85rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  field-sizing: content;
+}
+.field textarea { min-block-size: 9rem; line-height: 1.55; resize: vertical; }
+.field input:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--shell-brand);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--shell-brand) 24%, transparent);
+}
+
+.count { font-style: normal; color: var(--shell-muted); font-size: 0.82rem; }
+.over { font-style: normal; color: #c0392b; font-weight: 600; font-size: 0.82rem; }
+
+.actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-block-start: 0.5rem; }
+.primary,
+.secondary {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 0.95rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  transition: transform 0.14s, background 0.18s, color 0.18s, border-color 0.18s;
+}
+.primary { background: var(--shell-ink); color: var(--shell-paper); }
+.primary:hover:not(:disabled) { background: var(--shell-brand); transform: translateY(-1px); }
+.secondary {
+  background: transparent;
+  color: var(--shell-ink);
+  border-color: var(--shell-line);
+}
+.secondary:hover:not(:disabled) { border-color: var(--shell-ink); transform: translateY(-1px); }
+.primary:disabled,
+.secondary:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+.error {
+  background: color-mix(in oklch, #c0392b 12%, var(--shell-surface));
+  border: 1px solid color-mix(in oklch, #c0392b 40%, transparent);
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  font-size: 0.92rem;
+  margin: 0;
+}
+.success {
+  background: color-mix(in oklch, var(--shell-brand) 14%, var(--shell-surface));
+  border: 1px solid color-mix(in oklch, var(--shell-brand) 40%, transparent);
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  font-size: 0.95rem;
+  margin: 0;
+}
+.success a { color: var(--shell-brand); font-weight: 500; }
+
+.preview {
+  position: sticky;
+  top: 80px;
+  display: grid;
+  gap: 0.6rem;
+}
+.previewHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--shell-muted);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+.copy {
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  background: transparent;
+  border: 1px solid var(--shell-line);
+  color: var(--shell-muted);
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  cursor: pointer;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.copy:hover { color: var(--shell-ink); border-color: var(--shell-ink); }
+
+.frameWrap {
+  border: 1px solid var(--shell-line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--shell-surface);
+  aspect-ratio: 4 / 5;
+  min-block-size: 28rem;
+  display: grid;
+}
+.frame { inline-size: 100%; block-size: 100%; border: 0; background: white; }
+.empty {
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  text-align: center;
+  color: var(--shell-muted);
+  font-size: 0.95rem;
+}
