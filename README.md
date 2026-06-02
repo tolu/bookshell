@@ -85,10 +85,11 @@ If the trust model weakens (user-submitted artifacts, a third-party generator, e
 Pipeline:
 
 1. Form POSTs `{ title, author, genre, description, longText, imageUrl }` to `/api/generate`.
-2. The route fetches the cover (checks MIME, caps at 8 MB, 8 s timeout), builds the prompt, calls the model.
-3. The response is stripped of code fences (in case the model adds markdown despite instructions) and checked for the required structure (`<!doctype html>`, `<article>`, no `<script>`, no `<link>`).
-4. The result is shown in a `sandbox=""` iframe.
-5. "Save as release" POSTs to `/api/save-artifact`, which writes the HTML to `content/artifacts/<slug>.html`, appends `book` + `bookRelease` (status: published) records to `dataset.json`, and calls `revalidatePath` for `/releases` and the new slug. The release is then live in the listing and shell-wrapped at `/releases/<slug>` without a rebuild.
+2. The route fetches the cover (checks MIME, caps at 8 MB, 8 s timeout) and builds the prompt.
+3. The response is **streamed** as NDJSON frames over a `ReadableStream`: `status` frames at real milestones (`"Henter omslagsbilde…"`, `"Sender prompt til Gemini…"`, `"Venter på første tokens…"`, `"Genererer markup…"`), then `token` frames carrying chunks of HTML, then `done` (or `error`).
+4. The form reads frames via `getReader()`, accumulates the HTML, drives the progress UI (pulsing dot, current label, cycling fallback messages, monospace `X tegn mottatt` counter), and on `done` runs final cleanup: tighten code-fence stripping (only if the whole response is fenced), trim anything past the last `</html>`, scan for any `http(s)://` URL that isn't the supplied cover and surface those as warnings.
+5. The preview iframe is mounted **once**, after streaming finishes, keyed by `final-${html.length}` so a regeneration triggers a fresh instance. Rapid `srcDoc` updates during streaming thrashed the iframe's navigation queue and left it blank at the end — see the `fix(generate): preview iframe blank after streaming completed` commit. "Full størrelse ↗" opens the same HTML in a new tab via a Blob URL for browser-width preview, dev tools, etc.
+6. "Save as release" POSTs to `/api/save-artifact`, which writes the HTML to `content/artifacts/<slug>.html`, appends `book` + `bookRelease` (status: published) records to `dataset.json`, and calls `revalidatePath` for `/releases` and the new slug. The release is then live in the listing and shell-wrapped at `/releases/<slug>` without a rebuild.
 
 The dataset is read from disk at request time (not via a static `import`), so newly saved releases show up immediately in both `next dev` and `next start`. See `lib/sanity/releases.ts`.
 
@@ -98,23 +99,30 @@ The prompt lives in [`lib/gemini/prompt.ts`](lib/gemini/prompt.ts). Notes on its
 - **Explains the shell.** The model is told its HTML gets injected into a page that already has nav, a sticky buy bar, and a footer; it's told not to add its own.
 - **Forces a single bold idea.** Pick ONE compositional idea and ONE typographic idea, and commit to both in `/* DESIGN IDEA */` and `/* PALETTE */` comments at the top of the style block.
 - **Lists what to avoid.** A concrete anti-cliché list (centered hero on a gradient, three rounded feature cards, gradient pill buttons) steers harder than positive direction alone.
-- **Strict output format.** First character `<`, last `>`, no code fences; required structure (`<!doctype>`, `<html lang="nb">`, `<head>` with ONE `<style>`, `<body>` with ONE `<article class="promo">`).
+- **Strict output format.** Begins with `<!doctype html>`, ends with `</html>` — no code fences, no prose, no extra characters. Required structure inside: `<html lang="nb">`, `<head>` with ONE `<style>`, `<body>` with ONE `<article class="promo">`. (Earlier wording was "first char `<`, last `>`" — the model read that as "append a `>` to be safe" and produced `</html>>`.)
 - **Bans the things the sanitizer would silently strip.** `<script>`, `<link>`, `@import`, inline event handlers — so the model emits clean output instead of decorated HTML that gets gutted.
+- **No hallucinated URLs.** The cover URL (when supplied) is embedded in the prompt and required verbatim; every other external image URL is banned — no Unsplash, no stock-photo CDN, no Amazon-looking guesses. For other visuals the model is told to use CSS shapes, gradients, blend modes, mask-image, conic/radial gradients, `::before`/`::after`. The form runs a final URL audit on the streamed result and surfaces any stray external URL as a warning.
 - **`@scope`-aware.** Tells the model to put tokens on `:scope` (which matches our wrapper) and to prefix selectors with `.promo`, avoiding reliance on our `:root`→`:scope` remap.
 - **Motion is gated.** Every animation rule must sit inside `@media (prefers-reduced-motion: no-preference)`; the default state is motionless.
 - **Self-check before answering.** A short checklist at the end nudges the model to verify its own output.
 
-The prompt went through four versions:
+The prompt has been iterated as the demo got used:
 
 - v1 vague ("make it stunning") → generic output.
 - v2 added role + format → still safe and Bootstrap-y.
 - v3 added context, discipline, anti-clichés → a real jump in quality.
 - v4 added `:scope` guidance, banned `@import`, and tightened the self-check.
+- v5 (after first real runs): banned any external image URL except the cover, pulled the cover URL into the prompt so the model has a real string to reproduce — model was inventing realistic-looking Amazon URLs that 404.
+- v6: rewrote "first char `<`, last `>`" → "begin with `<!doctype html>`, end with `</html>`" — the literal-character rule was producing a stray `>` after `</html>`.
+
+Run `git log --follow lib/gemini/prompt.ts` for the actual trail.
 
 ## Files worth reading first
 
 - `app/releases/[slug]/page.tsx` — ties it together (thin: resolve → fetch → compose)
-- `lib/sanity/releases.ts` — faked Sanity client; GROQ equivalents in comments
+- `lib/sanity/releases.ts` — faked Sanity client; GROQ equivalents in comments; reads JSON from disk at request time
 - `lib/releases/body.ts` — fetch + sanitize + scope (the injection mechanic)
 - `lib/gemini/prompt.ts` — the generation prompt
+- `app/api/generate/route.ts` — NDJSON streaming pattern over a ReadableStream
+- `app/generate/generate-form.tsx` — stream consumer, iframe mount strategy, abort-on-resubmit
 - `components/release-shell.tsx` and `book-json-ld.tsx` — the SEO + buy surface
