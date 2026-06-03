@@ -1,4 +1,9 @@
-import type { QaVerdict } from "@/lib/gemini/qa";
+import type { QaVerdict } from "@/lib/agent/stages/qa";
+import type { QaFinding } from "@/lib/generate/protocol";
+
+// The data model for the generation flow: the editable form, the QA verdict the
+// server hands back, and the seed/limit constants the UI reads. (The flow's
+// phase machine lives next door in phase.ts; the network calls in requests.ts.)
 
 export type FormState = {
   title: string;
@@ -24,21 +29,11 @@ export const EMPTY: FormState = {
 
 export const LONG_LIMIT = 2000;
 
-// The flow is a linear, human-gated state machine:
-//   idle → briefing → briefReview → building → buildReview → saving → saved
-// with briefReview looping on feedback and buildReview looping on revisions.
-export type Phase =
-  | "idle"
-  | "briefing"
-  | "briefReview"
-  | "building"
-  | "buildReview"
-  | "saving"
-  | "saved";
-
+// The QA verdict as the UI holds it — the build endpoint's `qa` frame minus its
+// `type` tag. Built off the shared protocol types so it can't drift.
 export type QaState = {
   passed: boolean;
-  findings: { severity: string; message: string }[];
+  findings: QaFinding[];
   critic: QaVerdict | null;
 };
 

@@ -1,5 +1,5 @@
 import "server-only";
-import { type GenerateInput, inputBlock } from "./prompt";
+import { type GenerateInput, inputBlock } from "../input";
 import { type Brief } from "./brief";
 import { type Finding } from "@/lib/releases/lint";
 
