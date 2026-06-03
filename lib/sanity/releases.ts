@@ -23,7 +23,16 @@ export type ReleaseSeo = {
   ogImage: string;
 };
 
-export type BookRelease = {
+// Pipeline provenance stored alongside a release so a generation can be
+// inspected or reproduced later. All optional — pre-pipeline records lack them.
+export type ReleaseProvenance = {
+  designBrief?: string; // serialized Brief JSON
+  qaReport?: string; // serialized QA verdict JSON
+  editorNotes?: string; // the editor's steering input, if any
+  praise?: string; // the editor's supplied praise, if any
+};
+
+export type BookRelease = ReleaseProvenance & {
   _id: string;
   slug: string;
   status: "published" | "draft";
@@ -35,7 +44,7 @@ export type BookRelease = {
   seo: ReleaseSeo;
 };
 
-type RawRelease = {
+type RawRelease = ReleaseProvenance & {
   _id: string;
   slug: string;
   status: BookRelease["status"];

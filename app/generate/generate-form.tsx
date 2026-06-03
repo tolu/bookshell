@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import styles from "./generate.module.css";
 import { useSearchParams } from "next/navigation";
+import { lintArtifact } from "@/lib/releases/lint";
+import type { Brief } from "@/lib/gemini/brief";
 
 type FormState = {
   title: string;
@@ -11,6 +13,8 @@ type FormState = {
   genre: string;
   description: string;
   longText: string;
+  editorNotes: string;
+  praise: string;
 };
 
 const EMPTY: FormState = {
@@ -20,7 +24,11 @@ const EMPTY: FormState = {
   genre: "",
   description: "",
   longText: "",
+  editorNotes: "",
+  praise: "",
 };
+
+type QaState = { round: number; passed: boolean; findings: { severity: string; message: string }[] };
 
 const LONG_LIMIT = 2000;
 
@@ -64,27 +72,13 @@ function stripFences(text: string): string {
   return trimmed;
 }
 
-// Catch hallucinated URLs that survived the prompt's hard rule. We check the
-// final output (not the streaming buffer) so partial chunks don't trip it.
+// Surface spec violations on the final output (not the streaming buffer, so
+// partial chunks don't trip it). The ruleset is shared with the server's QA
+// gate via lintArtifact — see lib/releases/lint.ts. Client-side we only have
+// the cover URL; coverSize/praise/sourceText checks stay dormant here and run
+// server-side where that context exists.
 function checkHtml(html: string, allowedCoverUrl: string | null): string[] {
-  const warnings: string[] = [];
-  if (!html.toLowerCase().includes("<!doctype html")) warnings.push("Mangler <!DOCTYPE>.");
-  if (!html.includes("<article")) warnings.push("Mangler <article>.");
-  if (/<script\b/i.test(html)) warnings.push("Inneholder <script> (vil bli fjernet).");
-  if (/<link\b/i.test(html)) warnings.push("Inneholder <link> (vil ikke laste).");
-
-  const urlPattern = /https?:\/\/[^\s"'()<>]+/gi;
-  const seen = new Set<string>();
-  const allowed = allowedCoverUrl ?? "";
-  let m: RegExpExecArray | null;
-  while ((m = urlPattern.exec(html)) !== null) {
-    const url = m[0].replace(/[.,;)]+$/, "");
-    if (url === allowed) continue;
-    if (seen.has(url)) continue;
-    seen.add(url);
-    warnings.push(`Ukjent ekstern URL: ${url}`);
-  }
-  return warnings;
+  return lintArtifact(html, { coverUrl: allowedCoverUrl }).map((f) => f.message);
 }
 
 const DEMO: FormState = {
@@ -102,6 +96,8 @@ However, it seems the empire is not alone in this great game. Sinister forces ga
 
 Conceived and written on an epic scale, Gardens of the Moon is a breathtaking achievement - a novel in which grand design, a dark and complex mythology, wild and wayward magic and a host of enduring characters combine with thrilling, powerful storytelling to resounding effect. Acclaimed by writers, critics and readers alike, here is the opening chapter in what has been hailed a landmark of epic fantasy: the awesome 'The Malazan Book of the Fallen'.
 `,
+  editorNotes: "",
+  praise: `★★★★★ "A landmark of epic fantasy." — SFX\n"Grand, dark and magnificent." — Glen Cook`,
 }
 
 export function GenerateForm() {
@@ -110,6 +106,9 @@ export function GenerateForm() {
   const [form, setForm] = useState<FormState>(searchParams.get("demo") != null ? DEMO :EMPTY);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [fallbackIdx, setFallbackIdx] = useState(0);
+  // Pipeline outputs that persist across stages and into the final state.
+  const [brief, setBrief] = useState<Brief | null>(null);
+  const [qa, setQa] = useState<QaState | null>(null);
 
   // Cycle fallback messages every 2.6s while streaming.
   useEffect(() => {
@@ -134,6 +133,8 @@ export function GenerateForm() {
     abortRef.current = ctrl;
 
     setStatus({ kind: "streaming", label: "Starter…", html: "" });
+    setBrief(null);
+    setQa(null);
 
     let res: Response;
     try {
@@ -176,9 +177,27 @@ export function GenerateForm() {
         } catch {
           continue;
         }
-        if (frame.type === "status" && typeof frame.label === "string") {
+        if (
+          (frame.type === "status" || frame.type === "stage") &&
+          typeof frame.label === "string"
+        ) {
           currentLabel = frame.label;
           setStatus({ kind: "streaming", label: currentLabel, html });
+        } else if (frame.type === "brief" && frame.brief) {
+          setBrief(frame.brief as Brief);
+        } else if (frame.type === "render-start") {
+          // A fresh render (initial build or a QA revision) — reset the buffer
+          // so the char-counter and final HTML track only the current render.
+          html = "";
+          setStatus({ kind: "streaming", label: currentLabel, html });
+        } else if (frame.type === "qa") {
+          setQa({
+            round: Number(frame.round) || 1,
+            passed: Boolean(frame.passed),
+            findings: Array.isArray(frame.findings)
+              ? (frame.findings as QaState["findings"])
+              : [],
+          });
         } else if (frame.type === "token" && typeof frame.text === "string") {
           html += frame.text;
           setStatus({ kind: "streaming", label: currentLabel, html });
@@ -216,6 +235,10 @@ export function GenerateForm() {
           genre: form.genre,
           description: form.description,
           html,
+          designBrief: brief ? JSON.stringify(brief) : undefined,
+          qaReport: qa ? JSON.stringify(qa) : undefined,
+          editorNotes: form.editorNotes.trim() || undefined,
+          praise: form.praise.trim() || undefined,
         }),
       });
       const json = await res.json();
@@ -324,6 +347,24 @@ export function GenerateForm() {
             placeholder="2000 tegn med synopsis, utdrag eller pressetekst…"
           />
         </label>
+        <label className={styles.field}>
+          <span>Redaktørens føringer (valgfritt)</span>
+          <textarea
+            rows={3}
+            value={form.editorNotes}
+            onChange={(e) => update("editorNotes", e.target.value)}
+            placeholder="Idéer, tone, vinkling eller ting å unngå — styrer hele genereringen."
+          />
+        </label>
+        <label className={styles.field}>
+          <span>Omtale / sitater (valgfritt)</span>
+          <textarea
+            rows={3}
+            value={form.praise}
+            onChange={(e) => update("praise", e.target.value)}
+            placeholder={'Ekte sitater og terningkast, ett per linje. F.eks.\n★★★★★ «Mesterlig.» — VG'}
+          />
+        </label>
         <div className={styles.actions}>
           <button type="submit" className={styles.primary} disabled={streaming || saving}>
             {streaming ? "Genererer…" : "Generer side"}
@@ -381,6 +422,51 @@ export function GenerateForm() {
             )}
           </div>
         </header>
+
+        {brief && (
+          <section className={styles.brief}>
+            <div className={styles.briefHead}>
+              <span>Design-brief</span>
+              {qa && (
+                <span className={qa.passed ? styles.qaPass : styles.qaFail}>
+                  {qa.passed ? "✓ QA godkjent" : `QA runde ${qa.round}`}
+                </span>
+              )}
+            </div>
+            <p className={styles.briefSummary}>{brief.humanSummary}</p>
+            <div className={styles.briefMeta}>
+              <span><b>Motiv:</b> {brief.motif}</span>
+              <span><b>Visuelt system:</b> {brief.visualSystem}</span>
+              <span><b>Palett:</b> {brief.paletteDirection}</span>
+              <span><b>Krok:</b> {brief.marketingHook}</span>
+            </div>
+            {brief.pullQuotes.length > 0 && (
+              <ul className={styles.briefQuotes}>
+                {brief.pullQuotes.map((q, i) => (
+                  <li key={i}>
+                    “{q.text}”<cite>{q.source}</cite>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+
+        {qa && qa.findings.length > 0 && (
+          <div className={styles.qa}>
+            <span className={`${styles.qaBadge} ${qa.passed ? styles.qaPass : styles.qaFail}`}>
+              {qa.passed ? "✓ Godkjent" : "⚠ Funn"} (runde {qa.round})
+            </span>
+            <ul className={styles.qaFindings}>
+              {qa.findings.map((f, i) => (
+                <li key={i}>
+                  {f.severity === "error" ? "✕" : "⚠"} {f.message}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className={styles.frameWrap}>
           {/* The iframe is only mounted when generation is COMPLETE. Updating
               srcDoc on every streaming token thrashed the iframe's internal

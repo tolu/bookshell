@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { GenerateForm } from "./generate-form";
 import styles from "./generate.module.css";
 
@@ -29,7 +30,9 @@ export default function GeneratePage() {
           .
         </p>
       ) : (
-        <GenerateForm />
+        <Suspense fallback={null}>
+          <GenerateForm />
+        </Suspense>
       )}
     </main>
   );

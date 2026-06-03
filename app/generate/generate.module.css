@@ -236,3 +236,67 @@
   display: grid;
   gap: 0.3rem;
 }
+
+/* The AD-brief panel, shown under "Forhåndsvisning" with the design reasoning. */
+.brief {
+  border: 1px solid var(--shell-line);
+  border-radius: 12px;
+  background: var(--shell-surface);
+  padding: 1rem 1.1rem;
+  display: grid;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+}
+.briefHead {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--shell-muted);
+}
+.briefSummary { margin: 0; line-height: 1.55; color: var(--shell-ink); }
+.briefMeta {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--shell-muted);
+}
+.briefMeta b { color: var(--shell-ink); font-weight: 600; }
+.briefQuotes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+.briefQuotes li {
+  border-inline-start: 2px solid color-mix(in oklch, var(--shell-brand) 50%, transparent);
+  padding-inline-start: 0.6rem;
+  font-style: italic;
+  color: var(--shell-ink);
+  font-size: 0.86rem;
+}
+.briefQuotes cite { display: block; font-style: normal; color: var(--shell-muted); font-size: 0.78rem; }
+
+/* QA verdict badge + findings, in the same aside. */
+.qa {
+  border: 1px solid var(--shell-line);
+  border-radius: 10px;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.85rem;
+  display: grid;
+  gap: 0.4rem;
+}
+.qaBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+.qaPass { color: var(--shell-brand); }
+.qaFail { color: #c0392b; }
+.qaFindings { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; color: var(--shell-muted); }
