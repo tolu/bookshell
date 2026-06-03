@@ -35,12 +35,21 @@ INPUT
 - Long copy (synopsis / excerpt / press text): ${JSON.stringify(input.longText)}
 - Cover: ${coverNote}
 
+PLAN BEFORE YOU WRITE
+You reason before you answer — use that. Settle this plan first, then emit only the HTML document.
+1. MOTIF — read the pitch and excerpt and name ONE concrete, specific thing from THIS book: an object, image, or tension in the actual text (a stopped watch, a tideline, a redacted letter). Not a genre mood.
+2. TRANSLATION — map that motif to ONE CSS technique (clip-path fragmentation, a tideline gradient mask, redaction bars via ::after, …).
+3. COMPOSITION — your ONE bold layout idea.
+4. TYPOGRAPHY — your ONE bold type idea.
+5. PALETTE — anchor colors and a WCAG AA contrast check on every text/background pair.
+Record the conclusions in the /* MOTIF */ /* DESIGN IDEA */ /* PALETTE */ comments at the top of the <style> block. Do not output the planning prose itself — the answer is the HTML document only.
+
 DESIGN DIRECTIVES
 
 Discipline
 - Pick ONE bold compositional idea and execute it with conviction. Examples: asymmetric grid with hanging numerals, vertical title set sideways, full-bleed cover wash bleeding into a quiet body, oversized initial letter eating its column. NOT all of them.
 - Pick ONE bold typographic idea. Examples: dramatic drop cap, hung punctuation, oversized opening glyph, vertical setting, mixed-weight contrast.
-- State both at the top of the <style> block as comments: /* DESIGN IDEA: ... */ /* PALETTE: ... */
+- State all three at the top of the <style> block as comments: /* MOTIF: ... */ /* DESIGN IDEA: ... */ /* PALETTE: ... */
 
 Typography
 - Display serif for the title: font-family: "Spectral", "Source Serif Pro", Georgia, serif. (Web fonts won't load — the page falls back to Georgia. Design for that fallback.)
@@ -76,7 +85,7 @@ Accessibility (non-negotiable)
 - alt text on every <img>.
 - Heading hierarchy: <h1> for the book title, <h2> for sections.
 
-Genre vocabulary (loose hints, avoid cliché)
+Genre vocabulary (fallback only — use these ONLY if the excerpt yields nothing specific; a real motif from the text always beats genre vocabulary; avoid cliché)
 - Romance: warm, intimate, ornamental restraint — not roses-and-ribbons.
 - Thriller / crime: high contrast, kinetic typography, off-balance — not blood-spatter clipart.
 - Memoir / biography: photographic, restrained, document-like.
@@ -119,8 +128,9 @@ LENGTH
 - 400–800 lines of HTML+CSS combined. One hero, one or two body sections, one or two pull-quotes, optional metadata <dl>. Distil, don't pad.
 
 SELF-CHECK before emitting
+- Does the MOTIF from your plan actually show up in the CSS, not just the comment?
 - Is exactly ONE compositional idea + ONE typographic idea doing the heavy lifting?
-- Are /* DESIGN IDEA */ and /* PALETTE */ comments at the top of the <style> block?
+- Are /* MOTIF */, /* DESIGN IDEA */ and /* PALETTE */ comments at the top of the <style> block?
 - Are all animations gated on prefers-reduced-motion: no-preference?
 - Zero <script>, zero <link>, zero @import?
 - Everything inside <article class="promo">?

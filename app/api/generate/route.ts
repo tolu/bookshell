@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ThinkingLevel } from "@google/genai";
 import { getGenAI, GENERATION_MODEL } from "@/lib/gemini/client";
 import { buildPrompt, type GenerateInput } from "@/lib/gemini/prompt";
 
@@ -131,7 +132,17 @@ export async function POST(req: Request): Promise<Response> {
         const result = await ai.models.generateContentStream({
           model: GENERATION_MODEL,
           contents: [{ role: "user", parts }],
-          config: { temperature: 0.95, maxOutputTokens: 16000 },
+          // thinkingLevel HIGH is already the Gemini 3 default; we set it
+          // explicitly so a future SDK/default change can't silently lower
+          // reasoning depth on our design task. The prompt's "PLAN BEFORE YOU
+          // WRITE" section steers what that thinking covers. includeThoughts
+          // stays off so thought parts never enter chunk.text and pollute the
+          // streamed HTML.
+          config: {
+            temperature: 0.95,
+            maxOutputTokens: 36_000,
+            thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH },
+          },
         });
 
         send({ type: "status", label: "Venter på første tokens…" });
