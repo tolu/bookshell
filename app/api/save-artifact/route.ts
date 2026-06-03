@@ -15,6 +15,7 @@ type Body = {
   qaReport?: string;
   editorNotes?: string;
   praise?: string;
+  technicalNotes?: string;
 };
 
 // Naive slug — collapses to ASCII-ish, dashes, lowercase. Enough for the demo;
@@ -65,7 +66,7 @@ export async function POST(req: Request): Promise<Response> {
 
   // Optional provenance — only persisted when present.
   const provenance: Record<string, string> = {};
-  for (const key of ["designBrief", "qaReport", "editorNotes", "praise"] as const) {
+  for (const key of ["designBrief", "qaReport", "editorNotes", "praise", "technicalNotes"] as const) {
     const value = body[key]?.trim();
     if (value) provenance[key] = value;
   }

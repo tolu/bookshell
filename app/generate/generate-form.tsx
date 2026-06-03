@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import styles from "./generate.module.css";
 import { useSearchParams } from "next/navigation";
-import { lintArtifact } from "@/lib/releases/lint";
 import type { Brief } from "@/lib/gemini/brief";
+import type { QaVerdict } from "@/lib/gemini/qa";
 
 type FormState = {
   title: string;
@@ -28,14 +28,9 @@ const EMPTY: FormState = {
   praise: "",
 };
 
-type QaState = { round: number; passed: boolean; findings: { severity: string; message: string }[] };
-
 const LONG_LIMIT = 2000;
 
-// Fallback status messages cycled while the route hasn't sent its own.
-// Real status events from the route (cover fetch, prompt, first tokens)
-// take precedence — these only fill silent gaps so the user doesn't think
-// the request stalled.
+// Fallback status messages cycled while a stage hasn't sent its own.
 const FALLBACK_MESSAGES = [
   "Strekker fingrene…",
   "Tenker på fargepaletten…",
@@ -47,19 +42,22 @@ const FALLBACK_MESSAGES = [
   "Polerer kantene…",
 ];
 
-type Status =
-  | { kind: "idle" }
-  | { kind: "streaming"; label: string; html: string }
-  | { kind: "generated"; html: string; warnings: string[] }
-  | { kind: "saving"; html: string }
-  | { kind: "saved"; html: string; previewUrl: string }
-  | { kind: "error"; message: string; html?: string };
+// The flow is a linear, human-gated state machine:
+//   idle → briefing → briefReview → building → buildReview → saving → saved
+// with briefReview looping on feedback and buildReview looping on revisions.
+type Phase =
+  | "idle"
+  | "briefing"
+  | "briefReview"
+  | "building"
+  | "buildReview"
+  | "saving"
+  | "saved";
 
-// Strip a fenced code block if and only if the ENTIRE response is wrapped in
-// one. A loose regex would happily eat content between any two backticks the
-// model emits inside the page (e.g. a code example for a book about JS), so
-// we anchor to start+end. Also trims any garbage past the closing </html>
-// (the model sometimes adds a stray ">" trying to satisfy "end with `>`").
+type QaState = { passed: boolean; findings: { severity: string; message: string }[]; critic: QaVerdict | null };
+
+// Strip a fenced code block iff the ENTIRE response is wrapped, and trim any
+// stray characters past the closing </html>.
 function stripFences(text: string): string {
   const trimmed = text.trim();
   const opening = /^```(?:html)?\s*\n/i;
@@ -70,15 +68,6 @@ function stripFences(text: string): string {
   const end = trimmed.toLowerCase().lastIndexOf("</html>");
   if (end !== -1) return trimmed.slice(0, end + "</html>".length);
   return trimmed;
-}
-
-// Surface spec violations on the final output (not the streaming buffer, so
-// partial chunks don't trip it). The ruleset is shared with the server's QA
-// gate via lintArtifact — see lib/releases/lint.ts. Client-side we only have
-// the cover URL; coverSize/praise/sourceText checks stay dormant here and run
-// server-side where that context exists.
-function checkHtml(html: string, allowedCoverUrl: string | null): string[] {
-  return lintArtifact(html, { coverUrl: allowedCoverUrl }).map((f) => f.message);
 }
 
 const DEMO: FormState = {
@@ -102,65 +91,108 @@ Conceived and written on an epic scale, Gardens of the Moon is a breathtaking ac
 
 export function GenerateForm() {
   const searchParams = useSearchParams();
-  
-  const [form, setForm] = useState<FormState>(searchParams.get("demo") != null ? DEMO :EMPTY);
-  const [status, setStatus] = useState<Status>({ kind: "idle" });
-  const [fallbackIdx, setFallbackIdx] = useState(0);
-  // Pipeline outputs that persist across stages and into the final state.
-  const [brief, setBrief] = useState<Brief | null>(null);
-  const [qa, setQa] = useState<QaState | null>(null);
 
-  // Cycle fallback messages every 2.6s while streaming.
+  const [form, setForm] = useState<FormState>(searchParams.get("demo") != null ? DEMO : EMPTY);
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [brief, setBrief] = useState<Brief | null>(null);
+  const [html, setHtml] = useState("");
+  const [qa, setQa] = useState<QaState | null>(null);
+  const [streamLabel, setStreamLabel] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState("");
+  const [techNotes, setTechNotes] = useState("");
+  const [fallbackIdx, setFallbackIdx] = useState(0);
+
+  const streaming = phase === "building";
+
+  // Cycle fallback messages while a stage is working.
   useEffect(() => {
-    if (status.kind !== "streaming") return;
-    const id = setInterval(
-      () => setFallbackIdx((i) => (i + 1) % FALLBACK_MESSAGES.length),
-      2600
-    );
+    if (phase !== "briefing" && phase !== "building") return;
+    const id = setInterval(() => setFallbackIdx((i) => (i + 1) % FALLBACK_MESSAGES.length), 2600);
     return () => clearInterval(id);
-  }, [status.kind]);
+  }, [phase]);
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
 
-  // Keep the abort handle around so a re-submit cancels an in-flight stream.
   const abortRef = useRef<AbortController | null>(null);
 
-  async function onGenerate(e: React.FormEvent) {
-    e.preventDefault();
+  // ── Stage 1: brief (initial + feedback iterations) ──────────────────────
+  async function generateBrief(feedbackText?: string) {
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
+    setError(null);
+    setPhase("briefing");
 
-    setStatus({ kind: "streaming", label: "Starter…", html: "" });
-    setBrief(null);
+    try {
+      const res = await fetch("/api/generate/brief", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        signal: ctrl.signal,
+        body: JSON.stringify(
+          feedbackText ? { ...form, feedback: feedbackText, priorBrief: brief } : form
+        ),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error ?? `HTTP ${res.status}`);
+        setPhase(brief ? "briefReview" : "idle");
+        return;
+      }
+      setBrief(json.brief as Brief);
+      setFeedback("");
+      setPhase("briefReview");
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return;
+      setError((err as Error).message);
+      setPhase(brief ? "briefReview" : "idle");
+    }
+  }
+
+  // ── Stage 2/3: build (fresh) or revise, then QA ─────────────────────────
+  async function build(revise: boolean) {
+    if (!brief) return;
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setError(null);
     setQa(null);
+    setHtml("");
+    setStreamLabel("Starter…");
+    setPhase("building");
 
     let res: Response;
     try {
-      res = await fetch("/api/generate", {
+      res = await fetch("/api/generate/build", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(form),
         signal: ctrl.signal,
+        body: JSON.stringify({
+          ...form,
+          brief,
+          ...(revise ? { html, notes: techNotes } : {}),
+        }),
       });
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
-      setStatus({ kind: "error", message: (err as Error).message });
+      setError((err as Error).message);
+      setPhase("briefReview");
       return;
     }
-
     if (!res.ok || !res.body) {
       const j = await res.json().catch(() => ({}));
-      setStatus({ kind: "error", message: j.error ?? `HTTP ${res.status}` });
+      setError(j.error ?? `HTTP ${res.status}`);
+      setPhase("briefReview");
       return;
     }
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buf = "";
-    let html = "";
-    let currentLabel = "Starter…";
+    let acc = "";
+    let qaResult: QaState | null = null;
 
     while (true) {
       const { value, done } = await reader.read();
@@ -177,54 +209,43 @@ export function GenerateForm() {
         } catch {
           continue;
         }
-        if (
-          (frame.type === "status" || frame.type === "stage") &&
-          typeof frame.label === "string"
-        ) {
-          currentLabel = frame.label;
-          setStatus({ kind: "streaming", label: currentLabel, html });
-        } else if (frame.type === "brief" && frame.brief) {
-          setBrief(frame.brief as Brief);
-        } else if (frame.type === "render-start") {
-          // A fresh render (initial build or a QA revision) — reset the buffer
-          // so the char-counter and final HTML track only the current render.
-          html = "";
-          setStatus({ kind: "streaming", label: currentLabel, html });
-        } else if (frame.type === "qa") {
-          setQa({
-            round: Number(frame.round) || 1,
-            passed: Boolean(frame.passed),
-            findings: Array.isArray(frame.findings)
-              ? (frame.findings as QaState["findings"])
-              : [],
-          });
+        if (frame.type === "status" && typeof frame.label === "string") {
+          setStreamLabel(frame.label);
         } else if (frame.type === "token" && typeof frame.text === "string") {
-          html += frame.text;
-          setStatus({ kind: "streaming", label: currentLabel, html });
+          acc += frame.text;
+          setHtml(acc);
+        } else if (frame.type === "qa") {
+          qaResult = {
+            passed: Boolean(frame.passed),
+            findings: Array.isArray(frame.findings) ? (frame.findings as QaState["findings"]) : [],
+            critic: (frame.critic as QaVerdict) ?? null,
+          };
+          setQa(qaResult);
         } else if (frame.type === "error" && typeof frame.message === "string") {
-          setStatus({ kind: "error", message: frame.message, html });
+          setError(frame.message);
+          setHtml(stripFences(acc));
+          setPhase(acc ? "buildReview" : "briefReview");
           return;
         } else if (frame.type === "done") {
-          const final = stripFences(html);
-          const warnings = checkHtml(final, form.imageUrl.trim() || null);
-          setStatus({ kind: "generated", html: final, warnings });
+          setHtml(stripFences(acc));
+          setTechNotes("");
+          setPhase("buildReview");
           return;
         }
       }
     }
-
-    // Stream ended without a `done` frame — treat what we have as final.
-    if (html) {
-      const final = stripFences(html);
-      const warnings = checkHtml(final, form.imageUrl.trim() || null);
-      setStatus({ kind: "generated", html: final, warnings });
+    // Stream ended without an explicit done.
+    if (acc) {
+      setHtml(stripFences(acc));
+      setPhase("buildReview");
+    } else {
+      setPhase("briefReview");
     }
   }
 
   async function onSave() {
-    const html = currentHtml();
     if (!html) return;
-    setStatus({ kind: "saving", html });
+    setPhase("saving");
     try {
       const res = await fetch("/api/save-artifact", {
         method: "POST",
@@ -239,183 +260,139 @@ export function GenerateForm() {
           qaReport: qa ? JSON.stringify(qa) : undefined,
           editorNotes: form.editorNotes.trim() || undefined,
           praise: form.praise.trim() || undefined,
+          technicalNotes: techNotes.trim() || undefined,
         }),
       });
       const json = await res.json();
       if (!res.ok) {
-        setStatus({ kind: "error", message: json.error ?? "Save failed", html });
+        setError(json.error ?? "Save failed");
+        setPhase("buildReview");
         return;
       }
-      setStatus({ kind: "saved", html, previewUrl: json.previewUrl });
+      setPreviewUrl(json.previewUrl);
+      setPhase("saved");
     } catch (err) {
-      setStatus({ kind: "error", message: (err as Error).message, html });
+      setError((err as Error).message);
+      setPhase("buildReview");
     }
   }
 
+  function startOver() {
+    abortRef.current?.abort();
+    setPhase("idle");
+    setBrief(null);
+    setHtml("");
+    setQa(null);
+    setError(null);
+    setFeedback("");
+    setTechNotes("");
+  }
+
   function openInNewTab() {
-    const html = currentHtml();
     if (!html) return;
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const w = window.open(url, "_blank", "noopener,noreferrer");
-    // Revoke after the new tab has had time to navigate. If `open` was
-    // blocked, revoke immediately so we don't leak.
     setTimeout(() => URL.revokeObjectURL(url), w ? 60_000 : 0);
   }
 
-  function currentHtml(): string | undefined {
-    switch (status.kind) {
-      case "streaming":
-      case "generated":
-      case "saving":
-      case "saved":
-        return status.html;
-      case "error":
-        return status.html;
-      default:
-        return undefined;
-    }
-  }
-
-  const html = currentHtml();
-  const streaming = status.kind === "streaming";
-  const saving = status.kind === "saving";
+  const busy = phase === "briefing" || phase === "building" || phase === "saving";
   const longRemaining = LONG_LIMIT - form.longText.length;
-  const warnings = status.kind === "generated" ? status.warnings : [];
+  const step = phase === "idle" || phase === "briefing" || phase === "briefReview" ? 1
+    : phase === "building" || phase === "buildReview" ? 2 : 3;
 
   return (
     <div className={styles.layout}>
-      <form className={styles.form} onSubmit={onGenerate}>
+      <form
+        className={styles.form}
+        onSubmit={(e) => {
+          e.preventDefault();
+          generateBrief();
+        }}
+      >
         <label className={styles.field}>
           <span>Tittel</span>
-          <input
-            required
-            value={form.title}
-            onChange={(e) => update("title", e.target.value)}
-            placeholder="Alt starter med en drøm"
-          />
+          <input required disabled={busy || phase !== "idle"} value={form.title}
+            onChange={(e) => update("title", e.target.value)} placeholder="Alt starter med en drøm" />
         </label>
         <label className={styles.field}>
           <span>Forfatter</span>
-          <input
-            required
-            value={form.author}
-            onChange={(e) => update("author", e.target.value)}
-            placeholder="Antonio Nusa"
-          />
+          <input required disabled={busy || phase !== "idle"} value={form.author}
+            onChange={(e) => update("author", e.target.value)} placeholder="Antonio Nusa" />
         </label>
         <label className={styles.field}>
           <span>Sjanger</span>
-          <input
-            required
-            value={form.genre}
-            onChange={(e) => update("genre", e.target.value)}
-            placeholder="Biografi · Idrett"
-          />
+          <input required disabled={busy || phase !== "idle"} value={form.genre}
+            onChange={(e) => update("genre", e.target.value)} placeholder="Biografi · Idrett" />
         </label>
         <label className={styles.field}>
           <span>Forside (URL)</span>
-          <input
-            type="url"
-            value={form.imageUrl}
+          <input type="url" disabled={busy || phase !== "idle"} value={form.imageUrl}
             onChange={(e) => update("imageUrl", e.target.value)}
-            placeholder="https://… (valgfritt — brukes for fargepalett)"
-          />
+            placeholder="https://… (valgfritt — brukes for fargepalett)" />
         </label>
         <label className={styles.field}>
           <span>Pitch (en setning)</span>
-          <input
-            required
-            value={form.description}
+          <input required disabled={busy || phase !== "idle"} value={form.description}
             onChange={(e) => update("description", e.target.value)}
-            placeholder="Reisen bak suksessen til Antonio Nusa"
-          />
+            placeholder="Reisen bak suksessen til Antonio Nusa" />
         </label>
         <label className={styles.field}>
           <span>
             Sammendrag / brødtekst{" "}
-            <em className={longRemaining < 0 ? styles.over : styles.count}>
-              {longRemaining} tegn igjen
-            </em>
+            <em className={longRemaining < 0 ? styles.over : styles.count}>{longRemaining} tegn igjen</em>
           </span>
-          <textarea
-            required
-            rows={10}
-            maxLength={LONG_LIMIT}
-            value={form.longText}
-            onChange={(e) => update("longText", e.target.value)}
-            placeholder="2000 tegn med synopsis, utdrag eller pressetekst…"
-          />
+          <textarea required disabled={busy || phase !== "idle"} rows={10} maxLength={LONG_LIMIT}
+            value={form.longText} onChange={(e) => update("longText", e.target.value)}
+            placeholder="2000 tegn med synopsis, utdrag eller pressetekst…" />
         </label>
         <label className={styles.field}>
           <span>Redaktørens føringer (valgfritt)</span>
-          <textarea
-            rows={3}
-            value={form.editorNotes}
+          <textarea rows={3} disabled={busy || phase !== "idle"} value={form.editorNotes}
             onChange={(e) => update("editorNotes", e.target.value)}
-            placeholder="Idéer, tone, vinkling eller ting å unngå — styrer hele genereringen."
-          />
+            placeholder={"Du sitter i førersetet — sett retningen før vi starter. Tone, vinkling, hva du vil fremheve eller unngå. F.eks. «Hold det stramt og elegant», «spill på havet og ensomheten», «unngå sjangerklisjeer»."} />
         </label>
         <label className={styles.field}>
           <span>Omtale / sitater (valgfritt)</span>
-          <textarea
-            rows={3}
-            value={form.praise}
+          <textarea rows={3} disabled={busy || phase !== "idle"} value={form.praise}
             onChange={(e) => update("praise", e.target.value)}
-            placeholder={'Ekte sitater og terningkast, ett per linje. F.eks.\n★★★★★ «Mesterlig.» — VG'}
-          />
+            placeholder={'Ekte sitater og terningkast, ett per linje. F.eks.\n★★★★★ «Mesterlig.» — VG'} />
         </label>
+
         <div className={styles.actions}>
-          <button type="submit" className={styles.primary} disabled={streaming || saving}>
-            {streaming ? "Genererer…" : "Generer side"}
-          </button>
-          {html && status.kind !== "streaming" && (
-            <button
-              type="button"
-              className={styles.secondary}
-              onClick={onSave}
-              disabled={saving}
-            >
-              {saving ? "Lagrer…" : "Lagre som utgivelse"}
+          {phase === "idle" ? (
+            <button type="submit" className={styles.primary} disabled={busy}>
+              Lag design-brief
+            </button>
+          ) : (
+            <button type="button" className={styles.secondary} onClick={startOver} disabled={busy}>
+              Start på nytt
             </button>
           )}
         </div>
-        {status.kind === "error" && (
-          <p className={styles.error}>Feil: {status.message}</p>
-        )}
-        {status.kind === "saved" && (
+
+        {error && <p className={styles.error}>Feil: {error}</p>}
+        {phase === "saved" && (
           <p className={styles.success}>
-            Lagret. <a href={status.previewUrl}>Åpne utgivelsessiden →</a>
+            Lagret. <a href={previewUrl ?? "#"}>Åpne utgivelsessiden →</a>
           </p>
-        )}
-        {warnings.length > 0 && (
-          <ul className={styles.warnings}>
-            {warnings.map((w) => (
-              <li key={w}>⚠ {w}</li>
-            ))}
-          </ul>
         )}
       </form>
 
       <aside className={styles.preview}>
         <header className={styles.previewHead}>
-          <span>Forhåndsvisning</span>
+          <ol className={styles.steps}>
+            <li className={step === 1 ? styles.stepOn : ""}>1 Brief</li>
+            <li className={step === 2 ? styles.stepOn : ""}>2 Side</li>
+            <li className={step === 3 ? styles.stepOn : ""}>3 Lagre</li>
+          </ol>
           <div className={styles.previewActions}>
-            {html && (
+            {(phase === "buildReview" || phase === "saving" || phase === "saved") && html && (
               <>
-                <button
-                  type="button"
-                  className={styles.previewBtn}
-                  onClick={openInNewTab}
-                  title="Åpne i ny fane for full bredde"
-                >
+                <button type="button" className={styles.previewBtn} onClick={openInNewTab} title="Åpne i ny fane">
                   Full størrelse ↗
                 </button>
-                <button
-                  type="button"
-                  className={styles.previewBtn}
-                  onClick={() => navigator.clipboard.writeText(html)}
-                >
+                <button type="button" className={styles.previewBtn} onClick={() => navigator.clipboard.writeText(html)}>
                   Kopier HTML
                 </button>
               </>
@@ -423,16 +400,10 @@ export function GenerateForm() {
           </div>
         </header>
 
-        {brief && (
+        {/* ── Brief review ───────────────────────────────────────────── */}
+        {phase === "briefReview" && brief && (
           <section className={styles.brief}>
-            <div className={styles.briefHead}>
-              <span>Design-brief</span>
-              {qa && (
-                <span className={qa.passed ? styles.qaPass : styles.qaFail}>
-                  {qa.passed ? "✓ QA godkjent" : `QA runde ${qa.round}`}
-                </span>
-              )}
-            </div>
+            <div className={styles.briefHead}><span>Design-brief — gjennomgå og godkjenn</span></div>
             <p className={styles.briefSummary}>{brief.humanSummary}</p>
             <div className={styles.briefMeta}>
               <span><b>Motiv:</b> {brief.motif}</span>
@@ -443,70 +414,101 @@ export function GenerateForm() {
             {brief.pullQuotes.length > 0 && (
               <ul className={styles.briefQuotes}>
                 {brief.pullQuotes.map((q, i) => (
-                  <li key={i}>
-                    “{q.text}”<cite>{q.source}</cite>
-                  </li>
+                  <li key={i}>“{q.text}”<cite>{q.source}</cite></li>
+                ))}
+              </ul>
+            )}
+            <label className={styles.field}>
+              <span>Din regi til art directoren (valgfritt)</span>
+              <textarea rows={3} value={feedback} onChange={(e) => setFeedback(e.target.value)}
+                placeholder={"Du bestemmer retningen — det du skriver styrer neste utkast. Vær konkret:\n• «Mørkere og mer urovekkende»\n• «Bygg alt rundt fyrtårnet som motiv»\n• «Dropp det maritime, gjør det mer klaustrofobisk»\n• «Dristigere, mye større typografi»"} />
+              <small className={styles.hint}>Jo mer konkret regi, jo større effekt på resultatet.</small>
+            </label>
+            <div className={styles.reviewActions}>
+              <button type="button" className={styles.primary} onClick={() => build(false)}>
+                Godkjenn brief → bygg side
+              </button>
+              <button type="button" className={styles.secondary} disabled={!feedback.trim()}
+                onClick={() => generateBrief(feedback.trim())}>
+                Send tilbakemelding
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* ── Build review: QA + technical notes ─────────────────────── */}
+        {phase === "buildReview" && qa && (
+          <section className={styles.qa}>
+            <span className={`${styles.qaBadge} ${qa.passed ? styles.qaPass : styles.qaFail}`}>
+              QA-vurdering {qa.passed ? "✓ godkjent" : "— se funn"}
+              {qa.critic && ` · selger ${qa.critic.scores.sellability}/5`}
+            </span>
+            {qa.critic?.summary && <p className={styles.qaSummary}>{qa.critic.summary}</p>}
+            {(qa.findings.length > 0 || (qa.critic?.issues?.length ?? 0) > 0) && (
+              <ul className={styles.qaFindings}>
+                {qa.findings.map((f, i) => (
+                  <li key={`l${i}`}>{f.severity === "error" ? "✕" : "⚠"} {f.message}</li>
+                ))}
+                {qa.critic?.issues.map((f, i) => (
+                  <li key={`c${i}`}>• [{f.area}] {f.what}</li>
                 ))}
               </ul>
             )}
           </section>
         )}
 
-        {qa && qa.findings.length > 0 && (
-          <div className={styles.qa}>
-            <span className={`${styles.qaBadge} ${qa.passed ? styles.qaPass : styles.qaFail}`}>
-              {qa.passed ? "✓ Godkjent" : "⚠ Funn"} (runde {qa.round})
-            </span>
-            <ul className={styles.qaFindings}>
-              {qa.findings.map((f, i) => (
-                <li key={i}>
-                  {f.severity === "error" ? "✕" : "⚠"} {f.message}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
         <div className={styles.frameWrap}>
-          {/* The iframe is only mounted when generation is COMPLETE. Updating
-              srcDoc on every streaming token thrashed the iframe's internal
-              navigation queue and left it blank at the end. The `key` ties
-              to the final HTML length so a regeneration mounts a fresh
-              iframe instance, guaranteeing a clean parse. */}
-          {!streaming && html ? (
-            <iframe
-              key={`final-${html.length}`}
-              className={styles.frame}
-              sandbox=""
-              srcDoc={html}
-              title="Forhåndsvisning av generert side"
-            />
+          {(phase === "buildReview" || phase === "saving" || phase === "saved") && html ? (
+            <iframe key={`final-${html.length}`} className={styles.frame} sandbox="" srcDoc={html}
+              title="Forhåndsvisning av generert side" />
           ) : (
             <div className={styles.empty}>
-              {streaming ? (
+              {busy ? (
                 <>
                   <span className={styles.streamDot} aria-hidden="true" />
-                  <span key={status.label} className={styles.streamLabel}>
-                    {status.label}
-                  </span>
-                  <span className={styles.streamMeta}>
-                    {status.html.length > 0
-                      ? `${status.html.length.toLocaleString("nb-NO")} tegn mottatt`
-                      : ""}
-                  </span>
-                  <span
-                    key={`fallback-${fallbackIdx}`}
-                    className={styles.streamFallback}
-                  >
+                  <span key={streamLabel} className={styles.streamLabel}>{streamLabel || "Arbeider…"}</span>
+                  {streaming && (
+                    <span className={styles.streamMeta}>
+                      {html.length > 0 ? `${html.length.toLocaleString("nb-NO")} tegn mottatt` : ""}
+                    </span>
+                  )}
+                  <span key={`fallback-${fallbackIdx}`} className={styles.streamFallback}>
                     {FALLBACK_MESSAGES[fallbackIdx]}
                   </span>
                 </>
+              ) : phase === "idle" ? (
+                "Fyll inn skjemaet og lag en design-brief."
               ) : (
-                "Fyll inn skjemaet og trykk Generer."
+                "Gjennomgå design-briefen til venstre for forhåndsvisning."
               )}
             </div>
           )}
         </div>
+
+        {/* ── Build review actions ───────────────────────────────────── */}
+        {phase === "buildReview" && (
+          <div className={styles.briefReviewPane}>
+            <label className={styles.field}>
+              <span>Dine endringer til frontend-utvikleren (valgfritt)</span>
+              <textarea rows={3} value={techNotes} onChange={(e) => setTechNotes(e.target.value)}
+                placeholder={"Pek på det du vil ha endret — dette går rett inn i ombyggingen. Vær spesifikk:\n• «Mindre tittel så den ikke kuttes på kanten»\n• «Mer luft rundt sitatet»\n• «Sterkere kontrast i brødteksten»\n• «La forsiden fylle mindre på mobil»"} />
+              <small className={styles.hint}>Konkrete, spesifikke notater gir best resultat — du styrer ombyggingen.</small>
+            </label>
+            <div className={styles.reviewActions}>
+              <button type="button" className={styles.primary} onClick={onSave}>
+                Lagre som utgivelse
+              </button>
+              <button type="button" className={styles.secondary} onClick={() => build(true)}>
+                Be om endringer
+              </button>
+              <button type="button" className={styles.ghost} onClick={() => setPhase("briefReview")}>
+                Tilbake til brief
+              </button>
+            </div>
+          </div>
+        )}
+
+        {phase === "saving" && <p className={styles.savingNote}>Lagrer utgivelse…</p>}
       </aside>
     </div>
   );

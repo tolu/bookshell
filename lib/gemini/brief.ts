@@ -92,8 +92,27 @@ export const BRIEF_SCHEMA = {
   ],
 } as const;
 
-export function buildBriefPrompt(input: GenerateInput): string {
-  return `ROLE
+export function buildBriefPrompt(
+  input: GenerateInput,
+  opts: { feedback?: string | null; priorBrief?: Brief | null } = {}
+): string {
+  // Brief iteration: when the editor sends feedback on a prior brief, refine it
+  // rather than starting from scratch — keep what works, change per the note.
+  const reviseBlock =
+    opts.priorBrief && opts.feedback?.trim()
+      ? `REVISE THIS BRIEF
+You already produced the brief below. The editor has reviewed it and wants changes. Keep everything that works; change only what the feedback asks for (and whatever must follow from it). Return the FULL updated brief in the same schema.
+
+Prior brief:
+${JSON.stringify(opts.priorBrief, null, 2)}
+
+Editor feedback (highest priority):
+${JSON.stringify(opts.feedback.trim())}
+
+`
+      : "";
+
+  return `${reviseBlock}ROLE
 You are an art director at a literary publisher whose book pages have won D&AD pencils. Your work is typography-led AND visually immersive: you command colour, shape, scale and motion as much as type. Confident, editorial, art-directed. Bold and intentional — never trend-chasing, but never timid either.
 
 TASK

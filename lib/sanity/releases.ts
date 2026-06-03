@@ -30,6 +30,7 @@ export type ReleaseProvenance = {
   qaReport?: string; // serialized QA verdict JSON
   editorNotes?: string; // the editor's steering input, if any
   praise?: string; // the editor's supplied praise, if any
+  technicalNotes?: string; // the editor's build-review revision notes, if any
 };
 
 export type BookRelease = ReleaseProvenance & {

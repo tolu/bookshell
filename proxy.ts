@@ -56,7 +56,7 @@ export function proxy(req: NextRequest): NextResponse {
 export const config = {
   matcher: [
     "/generate/:path*",
-    "/api/generate",
+    "/api/generate/:path*", // covers /api/generate/brief and /api/generate/build
     "/api/save-artifact",
   ],
 };

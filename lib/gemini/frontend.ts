@@ -121,13 +121,22 @@ export function buildRevisePrompt(
   input: GenerateInput,
   brief: Brief,
   currentHtml: string,
-  issues: Finding[]
+  issues: Finding[],
+  editorNotes?: string | null
 ): string {
-  const issueList = issues
-    .map((f) => `- [${f.severity}] ${f.message}${f.fix ? ` → Fix: ${f.fix}` : ""}`)
-    .join("\n");
+  const issueList = issues.length
+    ? issues
+        .map((f) => `- [${f.severity}] ${f.message}${f.fix ? ` → Fix: ${f.fix}` : ""}`)
+        .join("\n")
+    : "(none)";
+  const editorBlock = editorNotes?.trim()
+    ? `EDITOR'S NOTES (highest priority — a human reviewed the page and asked for these; satisfy them first)
+${editorNotes.trim()}
+
+`
+    : "";
   return `ROLE
-You are a master CSS/HTML frontend developer revising a marketing page to fix specific QA findings WITHOUT losing the design's quality or intent.
+You are a master CSS/HTML frontend developer revising a marketing page to address the editor's notes and fix QA findings WITHOUT losing the design's quality or intent.
 
 INPUT
 ${inputBlock(input)}
@@ -135,7 +144,7 @@ ${inputBlock(input)}
 
 ${briefBlock(brief)}
 
-QA FINDINGS TO FIX (these are concrete defects — resolve every one, keep everything else that works)
+${editorBlock}QA FINDINGS (concrete defects — resolve every one, keep everything else that works)
 ${issueList}
 
 ${mechanicalRules(input)}
