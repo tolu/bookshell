@@ -6,6 +6,7 @@ import { type Brief } from "@/lib/gemini/brief";
 import { buildFrontendPrompt, buildRevisePrompt } from "@/lib/gemini/frontend";
 import { buildQaPrompt, QA_SCHEMA, type QaVerdict } from "@/lib/gemini/qa";
 import { lintArtifact } from "@/lib/releases/lint";
+import { stripArtifactHtml } from "@/lib/releases/strip";
 import { fetchImagePart, coverInlineParts } from "@/lib/gemini/cover";
 
 export const runtime = "nodejs";
@@ -38,19 +39,6 @@ type Frame =
 
 function frame(f: Frame): Uint8Array {
   return new TextEncoder().encode(JSON.stringify(f) + "\n");
-}
-
-// Server mirror of the client's fence-strip so lint/critic see clean HTML.
-function stripHtml(text: string): string {
-  const trimmed = text.trim();
-  const opening = /^```(?:html)?\s*\n/i;
-  const closing = /\n```\s*$/;
-  let html = trimmed;
-  if (opening.test(html) && closing.test(html)) {
-    html = html.replace(opening, "").replace(closing, "").trim();
-  }
-  const end = html.toLowerCase().lastIndexOf("</html>");
-  return end !== -1 ? html.slice(0, end + "</html>".length) : html;
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -150,7 +138,7 @@ export async function POST(req: Request): Promise<Response> {
           raw += text;
           send({ type: "token", text });
         }
-        const clean = stripHtml(raw);
+        const clean = stripArtifactHtml(raw);
 
         // QA gate — deterministic lint + LLM critic, reported, not auto-acted.
         send({ type: "status", label: "QA vurderer siden…" });
