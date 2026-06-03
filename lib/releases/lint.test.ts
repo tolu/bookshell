@@ -76,13 +76,41 @@ test("inline SVG namespace is NOT a hallucinated URL", () => {
 test("CSS comments don't leak into selector parsing", () => {
   const html = BASE.replace(
     ".promo .hero {",
-    "/* ACT 1 */ .promo .hero--surface { background: #222; } /* x */ .promo .hero {"
+    "/* ACT 1 */ .promo .hero--surface { background: #222; font-size: 1rem; } /* x */ .promo .hero {"
   );
   const found = lintArtifact(html);
   // The background-without-color warn fires, but its message must name the bare
   // selector, not the preceding comment.
   const warn = found.find((f) => f.id === "contrast-surface-no-color");
   assert.ok(warn && !warn.message.includes("/*"));
+});
+
+test("'javascript:' in book copy is NOT a forbidden URL; in href/src it is", () => {
+  // Regression: the book "JavaScript: The Good Parts" must not trip the JS-URL
+  // check just because its title contains "javascript:".
+  const copy = BASE
+    .replace("<title>T</title>", "<title>JavaScript: The Good Parts</title>")
+    .replace("<h1>T</h1>", "<h1>JavaScript: The Good Parts</h1>");
+  assert.ok(!ids(lintArtifact(copy)).includes("forbidden-js-url"));
+
+  const realUrl = BASE.replace("<h1>T</h1>", '<a href="javascript:void(0)">x</a><h1>T</h1>');
+  assert.ok(ids(lintArtifact(realUrl)).includes("forbidden-js-url"));
+});
+
+test("decorative background-only layer is NOT a contrast warn; text surface is", () => {
+  // A gradient wash / scrim with no text legitimately sets no color.
+  const deco = BASE.replace(
+    ".promo .hero {",
+    ".promo .wave { background: linear-gradient(#012, #024); } .promo .hero {"
+  );
+  assert.ok(!ids(lintArtifact(deco)).includes("contrast-surface-no-color"));
+
+  // A surface that sets a background AND text but no paired color is flagged.
+  const textSurface = BASE.replace(
+    ".promo .hero {",
+    ".promo .card { background: #111; font-size: 2rem; } .promo .hero {"
+  );
+  assert.ok(ids(lintArtifact(textSurface)).includes("contrast-surface-no-color"));
 });
 
 test("animations without reduced-motion guard → warn", () => {

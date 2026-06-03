@@ -267,7 +267,10 @@ export async function POST(req: Request): Promise<Response> {
           });
 
           if (passed || round === MAX_RENDERS - 1) break;
-          reviseIssues = [...lint, ...verdictIssues.map(qaIssueToFinding)];
+          // Only blocking errors + the critic's own issues drive a revise.
+          // Heuristic warns are advisory (shown to the user, fed to the critic
+          // for grounding) — they must not force the model to "fix" non-bugs.
+          reviseIssues = [...lintErrors, ...verdictIssues.map(qaIssueToFinding)];
         }
 
         send({ type: "done" });

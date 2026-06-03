@@ -118,10 +118,24 @@ export function lintArtifact(html: string, ctx: LintContext = {}): Finding[] {
       /\son[a-z]+\s*=\s*["']?/i,
       "Inneholder inline event-handler (on…=) (blir fjernet).",
     ],
-    ["forbidden-js-url", /javascript:/i, "Inneholder javascript:-URL (blir nøytralisert)."],
   ];
   for (const [id, re, message] of forbidden) {
     if (re.test(html)) add({ id, severity: "error", message });
+  }
+
+  // javascript: only matters as a URL — in an href/src attribute or a CSS
+  // url(). Matching it anywhere in the document false-positives on book copy
+  // like the title "JavaScript: The Good Parts". Mirror the sanitizer's
+  // context-aware match in lib/releases/body.ts.
+  if (
+    /(?:href|src)\s*=\s*["']?\s*javascript:/i.test(html) ||
+    /url\(\s*["']?\s*javascript:/i.test(css)
+  ) {
+    add({
+      id: "forbidden-js-url",
+      severity: "error",
+      message: "Inneholder javascript:-URL i href/src/url() (blir nøytralisert).",
+    });
   }
 
   // ---- Hallucinated image URLs -------------------------------------------
@@ -197,16 +211,23 @@ export function lintArtifact(html: string, ctx: LintContext = {}): Finding[] {
     });
   }
 
-  // ---- WARN: surface sets background but no color (contrast smell) --------
+  // ---- WARN: a TEXT-bearing surface sets background but no color ----------
+  // Only flag rules that set both a background AND a text property (font/
+  // line-height/…) yet no paired color — those genuinely risk inheriting a
+  // mismatched colour. Decorative background-only layers (gradient washes,
+  // scrims, lines) legitimately set no color and must not be flagged.
   for (const { selector, body } of blocks) {
-    const looksLikeSurface = /\b(hero|act|scene|section|cover|promo)\b/i.test(selector);
     const setsBackground = /background(-color|-image)?\s*:/i.test(body);
     const setsColor = /(^|[;{\s])color\s*:/i.test(body);
-    if (looksLikeSurface && setsBackground && !setsColor) {
+    const setsText =
+      /(^|[;{\s])(font|font-size|font-family|font-weight|line-height|letter-spacing|text-align|text-wrap)\s*:/i.test(
+        body
+      );
+    if (setsBackground && setsText && !setsColor) {
       add({
         id: "contrast-surface-no-color",
         severity: "warn",
-        message: `«${selector}» setter background men ingen color — risiko for arvet tekstfarge mot egen bakgrunn (sjekk kontrast).`,
+        message: `«${selector}» setter background og tekst men ingen color — risiko for arvet tekstfarge mot egen bakgrunn (sjekk kontrast).`,
       });
     }
   }
