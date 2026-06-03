@@ -4,7 +4,7 @@ A Next.js (App Router) demo of one way to do hybrid AI-rendered pages:
 
 - **Sanity holds the index.** Slugs, the pointer to each generated HTML file, SEO fields, status.
 - **Next.js owns the shell.** Site header, sticky buy bar, footer, page metadata, JSON-LD, canonical URL. Everything search engines and the buy flow care about.
-- **The generated page is rendered server-side into `<main>`**, with its CSS scoped so it can't reach the shell.
+- **The generated page is rendered server-side into `<main>`**, with its CSS scoped so it can't reach the shell and its stacking context isolated so it can't paint over it.
 
 Sanity is faked with a static JSON file so the demo runs without external services.
 
@@ -49,6 +49,18 @@ Each artifact's `<style>` block is wrapped in native [`@scope`](https://develope
 The browser handles every selector, at-rule, and inheritance boundary correctly — no regex, no parser, no edge cases. The only fixup is remapping the artifact's own `:root`/`html`/`body` selectors to `:scope` so their custom-property declarations land on the wrapper instead of the document root. Shipped in all evergreen browsers (Chrome 118+, Safari 17.4+, Firefox 128+).
 
 Drop to Shadow DOM only if you also need to block inherited fonts and colors from the shell — `@scope` doesn't stop inheritance, just selector matching.
+
+## Stacking context — the artifact stays under the shell
+
+`@scope` limits *selector matching*; it does **not** create a [stacking context](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_positioned_layout/Stacking_context) or contain positioning. So an artifact's own `position: sticky` pins, scroll-driven layers, or large `z-index` values resolve in the **root** stacking context — and because the artifact is injected *after* the shell chrome in the DOM, they will paint over the sticky site header (`.shell-header`, `z-index: 10`) and the buy bar (`.bar`, `z-index: 8`) instead of scrolling underneath them.
+
+The fix is one rule on the shell-owned artifact wrapper `<main>` ([`app/globals.css`](app/globals.css)):
+
+```css
+.release-body { isolation: isolate; }
+```
+
+`isolation: isolate` puts the whole artifact in its own stacking context beneath the chrome, so any internal `z-index` — even `9999` — is trapped below the header and bar. It's deliberately **not** `overflow` / `transform` / `contain`: each of those would create a scroll container or a new containing block and break the artifact's `animation-timeline: scroll()/view()` scroll-driven animations. Applied to the `<main>` (which the artifact can't restyle), so no generated page can override it.
 
 ## Sanitization — what we do and don't
 
@@ -103,14 +115,17 @@ Read-modify-write on `saveDataset` is **not atomic** — two concurrent `/api/sa
 
 **Model — `gemini-3-flash-preview`.** Picked over `gemini-2.5-flash` because the [Gemini 3 Flash release](https://blog.google/products-and-platforms/products/gemini/gemini-3-flash/) reports 78% on SWE-bench Verified (above the 2.5 series and even Gemini 3 Pro), 30% fewer output tokens on average, and Google specifically positions it for "interactive applications" and UI iteration — which is exactly what we're doing. Pricing $0.50 / $3.00 per 1M tokens (in / out) → ~$0.026 per page, a touch above 2.5 Flash (~$0.021) but the token-efficiency claim narrows that gap and the code-gen improvement is the point. The `-preview` tag means no stability guarantee — fine for an experiment app. Swap to `gemini-2.5-flash` for a stable fallback or `gemini-3.5-flash` for the stable 3-series Flash once you want lock-in.
 
-Pipeline:
+**It's a multi-agent pipeline, not a single call** — see [`app/api/generate/route.ts`](app/api/generate/route.ts). The spec the model must obey (forbidden elements, the scroll-timeline footguns, contrast pairing, no fabricated facts, cover sizing) lives once in a deterministic linter, [`lib/releases/lint.ts`](lib/releases/lint.ts), that both the prompts and the QA gate reference — so a rule is written and enforced in one place.
 
-1. Form POSTs `{ title, author, genre, description, longText, imageUrl }` to `/api/generate`.
-2. The route fetches the cover (checks MIME, caps at 8 MB, 8 s timeout) and builds the prompt.
-3. The response is **streamed** as NDJSON frames over a `ReadableStream`: `status` frames at real milestones (`"Henter omslagsbilde…"`, `"Sender prompt til Gemini…"`, `"Venter på første tokens…"`, `"Genererer markup…"`), then `token` frames carrying chunks of HTML, then `done` (or `error`).
-4. The form reads frames via `getReader()`, accumulates the HTML, drives the progress UI (pulsing dot, current label, cycling fallback messages, monospace `X tegn mottatt` counter), and on `done` runs final cleanup: tighten code-fence stripping (only if the whole response is fenced), trim anything past the last `</html>`, scan for any `http(s)://` URL that isn't the supplied cover and surface those as warnings.
-5. The preview iframe is mounted **once**, after streaming finishes, keyed by `final-${html.length}` so a regeneration triggers a fresh instance. Rapid `srcDoc` updates during streaming thrashed the iframe's navigation queue and left it blank at the end — see the `fix(generate): preview iframe blank after streaming completed` commit. "Full størrelse ↗" opens the same HTML in a new tab via a Blob URL for browser-width preview, dev tools, etc.
-6. "Save as release" POSTs to `/api/save-artifact`, which calls `storage.saveArtifact(slug, html)` (disk → bare filename, Blob → public URL), reads the dataset via `storage.getDataset()`, appends `book` + `bookRelease` (status: published) records or updates an existing release's `artifactRef`, writes it back via `storage.saveDataset()`, and calls `revalidatePath` for `/releases` and the new slug. The release is then live in the listing and shell-wrapped at `/releases/<slug>` without a rebuild.
+1. The form POSTs `{ title, author, genre, description, longText, imageUrl, editorNotes?, praise? }` to `/api/generate`. `editorNotes` is optional free-text that steers the whole run; `praise` is optional editor-supplied quotes/reviews — the *only* legitimate source of review pull-quotes or star ratings (with both blank, none of that is allowed). The cover (if a URL is given) is fetched server-side — MIME-checked, 8 MB / 8 s capped — and its intrinsic pixel size is decoded ([`lib/images/dimensions.ts`](lib/images/dimensions.ts)) so the prompt can forbid upscaling it.
+2. **Stage 1 — AD brief.** [`lib/gemini/brief.ts`](lib/gemini/brief.ts) asks Gemini for a *structured-JSON* design brief (concept, motif, visual system, palette, 3–5 scroll acts, marketing hook, verbatim pull-quotes). The brief is the inspectable creative direction; splitting it from the build keeps each prompt short and focused.
+3. **Stage 2 — frontend build.** [`lib/gemini/frontend.ts`](lib/gemini/frontend.ts) executes the brief as one self-contained HTML document, streamed token-by-token.
+4. **Stage 3 — QA gate.** The streamed HTML is run through the deterministic linter *and* an LLM critic ([`lib/gemini/qa.ts`](lib/gemini/qa.ts)) that scores what the linter can't — concept, sellability, hierarchy, copy — grounded by the lint findings. Lint clean **and** critic passes → ship; otherwise the combined findings feed a **revise** (Stage 2 again). Up to 3 renders total, with early-exit the moment a render passes.
+5. The whole run **streams as NDJSON frames** over a `ReadableStream`: `status` (cover fetch), `stage` (brief/build/qa/revise milestones), `brief` (the structured brief, surfaced under "Forhåndsvisning"), `render-start` (tells the client to reset its HTML buffer for a fresh render), `token` (HTML chunks of the current render), `qa` (a round's verdict + findings), then `done` / `error`.
+6. The form reads frames via `getReader()`, accumulates the current render's tokens (resetting on `render-start`), drives the progress UI and the brief/QA panels, and mounts the preview iframe **once** on `done`, keyed by `final-${html.length}` — rapid `srcDoc` updates during streaming thrashed the iframe's navigation queue and left it blank (see the `fix(generate): preview iframe blank after streaming completed` commit). It runs the same `lib/releases/lint.ts` as a final client-side warning pass. "Full størrelse ↗" opens the HTML in a new tab via a Blob URL.
+7. "Save as release" POSTs to `/api/save-artifact`, which calls `storage.saveArtifact(slug, html)` (disk → bare filename, Blob → public URL), reads the dataset, appends/updates the `book` + `bookRelease` records — now also persisting the run's `designBrief`, `qaReport`, `editorNotes`, and `praise` for reproducibility — writes it back, and `revalidatePath`s `/releases` and the new slug. The release is live without a rebuild.
+
+Latency: the stages run several Gemini calls in sequence, so `maxDuration = 300` (needs Vercel Pro; on Hobby's 60 s cap, drop the revise loop to a single build via `MAX_RENDERS`). Brief and build think at `thinkingLevel: HIGH`, the critic at `MEDIUM`.
 
 The dataset is read at request time, never via a static import, so newly saved releases show up immediately. See [Storage](#storage--disk-locally-vercel-blob-on-production) above.
 
@@ -126,38 +141,30 @@ How it works:
 
 Threat model is "stop people who don't know the password from spending my credits" — not real authentication. For more, swap in an auth provider (Vercel Authentication on Pro, Auth.js, Clerk, etc.).
 
-The prompt lives in [`lib/gemini/prompt.ts`](lib/gemini/prompt.ts). Notes on its design:
+The prompts live in [`lib/gemini/`](lib/gemini), split by role — [`brief.ts`](lib/gemini/brief.ts) (creative direction → structured JSON), [`frontend.ts`](lib/gemini/frontend.ts) (the mechanical build + revise), [`qa.ts`](lib/gemini/qa.ts) (the critic) — sharing common fragments (the input block, cover handling, the no-fabrication contract) from [`prompt.ts`](lib/gemini/prompt.ts). What they enforce:
 
-- **Sets the role.** "Art director at a literary publisher whose pages have won D&AD pencils." Gives the model a higher bar than "make it nice".
-- **Explains the shell.** The model is told its HTML gets injected into a page that already has nav, a sticky buy bar, and a footer; it's told not to add its own.
-- **Forces a single bold idea.** Pick ONE compositional idea and ONE typographic idea, and commit to both in `/* DESIGN IDEA */` and `/* PALETTE */` comments at the top of the style block.
-- **Lists what to avoid.** A concrete anti-cliché list (centered hero on a gradient, three rounded feature cards, gradient pill buttons) steers harder than positive direction alone.
-- **Strict output format.** Begins with `<!doctype html>`, ends with `</html>` — no code fences, no prose, no extra characters. Required structure inside: `<html lang="nb">`, `<head>` with ONE `<style>`, `<body>` with ONE `<article class="promo">`. (Earlier wording was "first char `<`, last `>`" — the model read that as "append a `>` to be safe" and produced `</html>>`.)
-- **Bans the things the sanitizer would silently strip.** `<script>`, `<link>`, `@import`, inline event handlers — so the model emits clean output instead of decorated HTML that gets gutted.
-- **No hallucinated URLs.** The cover URL (when supplied) is embedded in the prompt and required verbatim; every other external image URL is banned — no Unsplash, no stock-photo CDN, no Amazon-looking guesses. For other visuals the model is told to use CSS shapes, gradients, blend modes, mask-image, conic/radial gradients, `::before`/`::after`. The form runs a final URL audit on the streamed result and surfaces any stray external URL as a warning.
-- **`@scope`-aware.** Tells the model to put tokens on `:scope` (which matches our wrapper) and to prefix selectors with `.promo`, avoiding reliance on our `:root`→`:scope` remap.
-- **Motion is gated.** Every animation rule must sit inside `@media (prefers-reduced-motion: no-preference)`; the default state is motionless.
-- **Self-check before answering.** A short checklist at the end nudges the model to verify its own output.
+- **Role + shell awareness.** "Art director … D&AD pencils." The model is told its HTML is injected into a shell that already owns the nav, sticky buy bar, and footer, and not to add its own.
+- **One committed idea, immersive beyond type.** One compositional + one typographic + one visual-system move, recorded in `/* MOTIF */ /* DESIGN IDEA */ /* VISUAL */ /* PALETTE */` comments. Bold colour fields, gradients, shape and scale are encouraged — not just nice typography.
+- **One fixed palette, no `light-dark()`.** The page is a self-contained art-directed world, not theme-respecting chrome. Every self-coloured surface must set its own paired `color` in the same rule — the fix for inherited black-on-black. No dual-mode design.
+- **A scroll narrative, with the footguns spelled out.** 3–5 scroll acts driven by `animation-timeline: view()/scroll()` and `position: sticky`; the static, no-animation state must be complete and readable. Two silent killers are called out explicitly: never `overflow: hidden/auto/scroll` on `.promo` or a scroll ancestor (it makes a scroll container and freezes the timeline at frame one — use `overflow-x: clip`), and `animation-range` keywords are a closed set (an invented `center` makes the whole declaration invalid).
+- **Strict output contract.** Begins `<!doctype html>`, ends `</html>`; `<html lang="nb">`, one `<style>`, one `<article class="promo">`. Bans what the sanitizer would silently strip (`<script>`, `<link>`, `@import`, inline handlers) and any external image URL except the supplied cover.
+- **Invent nothing.** Copy comes only from the inputs; quotes and ratings must be verbatim from the excerpt or the editor-supplied `praise` — no fictional critics, awards, or bios.
+- **`@scope`-aware, responsive, cover never upscaled.** Tokens on `:scope`, selectors prefixed `.promo`; mobile-first with `@container` reflow; the cover is capped at its intrinsic size (decoded server-side) so it never blurs from upscaling.
 
-The prompt has been iterated as the demo got used:
+Every one of these is *also* enforced deterministically by [`lib/releases/lint.ts`](lib/releases/lint.ts), so a violation that slips the prompt is caught by the QA gate and fed back into a revise round rather than relying on the model to self-check.
 
-- v1 vague ("make it stunning") → generic output.
-- v2 added role + format → still safe and Bootstrap-y.
-- v3 added context, discipline, anti-clichés → a real jump in quality.
-- v4 added `:scope` guidance, banned `@import`, and tightened the self-check.
-- v5 (after first real runs): banned any external image URL except the cover, pulled the cover URL into the prompt so the model has a real string to reproduce — model was inventing realistic-looking Amazon URLs that 404.
-- v6: rewrote "first char `<`, last `>`" → "begin with `<!doctype html>`, end with `</html>`" — the literal-character rule was producing a stray `>` after `</html>`.
-
-Run `git log --follow lib/gemini/prompt.ts` for the actual trail.
+The prompt history is in git: `git log --follow lib/gemini/prompt.ts` covers the single mega-prompt era (vague → role+format → context/discipline/anti-clichés → `:scope`/`@import` → banning hallucinated URLs → the contrast / scroll-timeline / responsive-cover rules), before it was split into the `brief.ts` / `frontend.ts` / `qa.ts` pipeline above.
 
 ## Files worth reading first
 
 - `app/releases/[slug]/page.tsx` — ties it together (thin: resolve → fetch → compose)
 - `lib/sanity/releases.ts` — faked Sanity client; GROQ equivalents in comments; reads via the storage module
 - `lib/storage/` — disk vs Blob dispatch (the storage facade)
-- `lib/releases/body.ts` — sanitize + scope (the injection mechanic)
-- `lib/gemini/prompt.ts` — the generation prompt
-- `app/api/generate/route.ts` — NDJSON streaming pattern over a ReadableStream
-- `app/generate/generate-form.tsx` — stream consumer, iframe mount strategy, abort-on-resubmit
+- `lib/releases/body.ts` — sanitize + scope (the injection mechanic); stacking isolation lives in `app/globals.css`
+- `lib/releases/lint.ts` — the deterministic artifact spec; shared by the prompts and the QA gate (tests alongside)
+- `app/api/generate/route.ts` — the multi-agent orchestrator + NDJSON streaming over a ReadableStream
+- `lib/gemini/brief.ts`, `frontend.ts`, `qa.ts` — the three pipeline prompts (shared fragments in `prompt.ts`)
+- `lib/images/dimensions.ts` — dependency-free cover intrinsic-size decode (tests alongside)
+- `app/generate/generate-form.tsx` — stream consumer, brief/QA panels, iframe mount strategy, abort-on-resubmit
 - `proxy.ts` — password gate for the generation endpoints (Next 16 calls it "proxy", formerly "middleware")
 - `components/release-shell.tsx` and `book-json-ld.tsx` — the SEO + buy surface
