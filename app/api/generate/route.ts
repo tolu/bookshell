@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ThinkingLevel } from "@google/genai";
 import { getGenAI, GENERATION_MODEL } from "@/lib/gemini/client";
 import { buildPrompt, type GenerateInput } from "@/lib/gemini/prompt";
+import { readImageSize, type ImageSize } from "@/lib/images/dimensions";
 
 export const runtime = "nodejs";
 // Generation can take 10–30s on gemini-3-flash-preview. Vercel functions
@@ -25,7 +26,9 @@ const ALLOWED_IMAGE_MIME = new Set([
 ]);
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
-async function fetchImagePart(url: string): Promise<{ mimeType: string; data: string } | null> {
+async function fetchImagePart(
+  url: string
+): Promise<{ mimeType: string; data: string; size: ImageSize | null } | null> {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -50,7 +53,12 @@ async function fetchImagePart(url: string): Promise<{ mimeType: string; data: st
     throw new Error(`Cover too large: ${buf.byteLength} bytes`);
   }
 
-  return { mimeType, data: Buffer.from(buf).toString("base64") };
+  const bytes = Buffer.from(buf);
+  return {
+    mimeType,
+    data: bytes.toString("base64"),
+    size: readImageSize(bytes, mimeType),
+  };
 }
 
 // Streaming protocol: NDJSON lines. The client reads one line per event.
@@ -96,7 +104,7 @@ export async function POST(req: Request): Promise<Response> {
     async start(controller) {
       const send = (f: Frame) => controller.enqueue(frame(f));
       try {
-        let coverPart: { mimeType: string; data: string } | null = null;
+        let coverPart: { mimeType: string; data: string; size: ImageSize | null } | null = null;
         if (imageUrl) {
           send({ type: "status", label: "Henter omslagsbilde…" });
           try {
@@ -118,13 +126,16 @@ export async function POST(req: Request): Promise<Response> {
           description,
           longText,
           coverImageUrl: coverPart && imageUrl ? imageUrl : null,
+          coverSize: coverPart && imageUrl ? coverPart.size : null,
         };
         const prompt = buildPrompt(input);
 
         const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
           { text: prompt },
         ];
-        if (coverPart) parts.push({ inlineData: coverPart });
+        if (coverPart) {
+          parts.push({ inlineData: { mimeType: coverPart.mimeType, data: coverPart.data } });
+        }
 
         send({ type: "status", label: "Sender prompt til Gemini…" });
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import styles from "./generate.module.css";
+import { useSearchParams } from "next/navigation";
 
 type FormState = {
   title: string;
@@ -86,8 +87,27 @@ function checkHtml(html: string, allowedCoverUrl: string | null): string[] {
   return warnings;
 }
 
+const DEMO: FormState = {
+  title: "Gardens of the Moon",
+  author: "Steven Erikson",
+  genre: "Dark Fantasy",
+  imageUrl: "https://prod-bb-images.akamaized.net/book-covers/coverimage-9781473565531-coresourceprhuk-2025-02-19t15-02.jpg?w=640",
+  description: `Erikson drops you into the deep end of a 300,000-year history. You will feel lost at first, but the thrill of piecing together the world yourself is unmatched.`,
+  longText: `
+Bled dry by interminable warfare, infighting and bloody confrontations with Lord Anomander Rake and his Tiste Andii, the vast, sprawling Malazan empire simmers with discontent.
+
+Even its imperial legions yearn for some respite. For Sergeant Whiskeyjack and his Bridgeburners and for Tattersail, sole surviving sorceress of the Second Legion, the aftermath of the siege of Pale should have been a time to mourn the dead. But Darujhistan, last of the Free Cities of Genabackis, still holds out - and Empress Lasseen's ambition knows no bounds.
+
+However, it seems the empire is not alone in this great game. Sinister forces gather as the gods themselves prepare to play their hand...
+
+Conceived and written on an epic scale, Gardens of the Moon is a breathtaking achievement - a novel in which grand design, a dark and complex mythology, wild and wayward magic and a host of enduring characters combine with thrilling, powerful storytelling to resounding effect. Acclaimed by writers, critics and readers alike, here is the opening chapter in what has been hailed a landmark of epic fantasy: the awesome 'The Malazan Book of the Fallen'.
+`,
+}
+
 export function GenerateForm() {
-  const [form, setForm] = useState<FormState>(EMPTY);
+  const searchParams = useSearchParams();
+  
+  const [form, setForm] = useState<FormState>(searchParams.get("demo") != null ? DEMO :EMPTY);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [fallbackIdx, setFallbackIdx] = useState(0);
 
