@@ -10,6 +10,12 @@ type Body = {
   genre?: string;
   description?: string;
   html?: string;
+  // Optional pipeline provenance (designBrief/qaReport are serialized JSON).
+  designBrief?: string;
+  qaReport?: string;
+  editorNotes?: string;
+  praise?: string;
+  technicalNotes?: string;
 };
 
 // Naive slug — collapses to ASCII-ish, dashes, lowercase. Enough for the demo;
@@ -58,6 +64,13 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ error: "Could not derive slug from title" }, { status: 400 });
   }
 
+  // Optional provenance — only persisted when present.
+  const provenance: Record<string, string> = {};
+  for (const key of ["designBrief", "qaReport", "editorNotes", "praise", "technicalNotes"] as const) {
+    const value = body[key]?.trim();
+    if (value) provenance[key] = value;
+  }
+
   // Write the artifact first. saveArtifact returns either a bare filename
   // (disk mode) or a Blob URL (blob mode) — whichever is appropriate for
   // dataset.artifactRef so the reader on the other side knows how to load it.
@@ -86,9 +99,11 @@ export async function POST(req: Request): Promise<Response> {
   }
   const existingRelease = dataset.bookReleases.find((r) => r._id === releaseId);
   if (existingRelease) {
-    // Idempotent regenerate: keep the record, just point at the new artifact.
+    // Idempotent regenerate: keep the record, just point at the new artifact
+    // and refresh provenance from this run.
     existingRelease.artifactRef = artifactRef;
     existingRelease.version = ((existingRelease.version as number) ?? 1) + 1;
+    Object.assign(existingRelease, provenance);
   } else {
     dataset.bookReleases.push({
       _id: releaseId,
@@ -105,6 +120,7 @@ export async function POST(req: Request): Promise<Response> {
         description,
         ogImage: "",
       },
+      ...provenance,
     });
   }
 

@@ -58,7 +58,7 @@ export default async function ReleasePage({
   return (
     <ReleaseShell book={release.book}>
       <BookJsonLd book={release.book} slug={slug} />
-      <main dangerouslySetInnerHTML={{ __html: body.html }} />
+      <main className="release-body" dangerouslySetInnerHTML={{ __html: body.html }} />
     </ReleaseShell>
   );
 }

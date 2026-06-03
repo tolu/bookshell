@@ -37,6 +37,15 @@ a { color: inherit; }
 
 .shell-main { flex: 1; }
 
+/* The injected artifact owns its own presentation, including sticky pins,
+   scroll-driven layers and arbitrary z-index. Isolate it into its own stacking
+   context so none of that can ever paint over the sticky shell header (.shell-header,
+   z-index 10) or buy bar (.bar, z-index 8) — the artifact scrolls underneath, the
+   chrome stays on top. isolation:isolate (not overflow/transform/contain) does this
+   without creating a scroll container, which would break the artifact's
+   animation-timeline: scroll()/view() animations. */
+.release-body { isolation: isolate; }
+
 /* ── Header ───────────────────────────────────────────── */
 .shell-header {
   border-block-end: 1px solid var(--shell-line);
