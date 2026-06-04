@@ -188,6 +188,23 @@
   backdrop-filter: blur(6px);
   pointer-events: none;
 }
+
+/* Centered "warming up" overlay shown over the (still empty) iframe while we
+   wait for the model's first tokens. Swaps to .streamOverlay once html state
+   has any content. */
+.streamOverlayWaiting {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  gap: 0.75rem;
+  padding: 2rem;
+  text-align: center;
+  color: var(--shell-muted);
+  font-size: 0.95rem;
+  background: var(--shell-surface);
+  pointer-events: none;
+}
 .streamDot {
   inline-size: 0.55rem;
   block-size: 0.55rem;
