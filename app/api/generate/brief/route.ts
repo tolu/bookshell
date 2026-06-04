@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { parseGenerateRequest, buildInput } from "@/lib/agent/input";
+import { parseGenerateRequest, buildInput, type GenerateRequestBody } from "@/lib/agent/input";
 import { fetchImagePart, type CoverPart } from "@/lib/agent/cover";
 import { generateBrief } from "@/lib/agent/run-brief";
 import { type Brief } from "@/lib/agent/stages/brief";
@@ -9,8 +9,11 @@ export const runtime = "nodejs";
 // freetext-feedback refinement.
 export const maxDuration = 60;
 
+// Initial brief, plus every feedback refinement (feedback + the prior brief).
+type BriefBody = GenerateRequestBody & { feedback?: string; priorBrief?: Brief };
+
 export async function POST(req: Request): Promise<Response> {
-  let body: Record<string, unknown>;
+  let body: BriefBody;
   try {
     body = await req.json();
   } catch {
@@ -35,8 +38,8 @@ export async function POST(req: Request): Promise<Response> {
 
   try {
     const brief = await generateBrief(buildInput(parsed.fields, cover), cover, {
-      feedback: typeof body.feedback === "string" ? body.feedback : undefined,
-      priorBrief: (body.priorBrief as Brief | undefined) ?? null,
+      feedback: body.feedback,
+      priorBrief: body.priorBrief ?? null,
     });
     return NextResponse.json({ brief });
   } catch (err) {

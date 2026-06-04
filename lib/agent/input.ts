@@ -76,6 +76,21 @@ export function factsRule(input: GenerateInput): string {
 
 export const LONG_TEXT_LIMIT = 2000;
 
+// The raw request body shared by both generate endpoints. This is the wire
+// shape (what a well-behaved client sends); the values are still validated at
+// runtime by parseGenerateRequest, since `req.json()` can't be trusted. Each
+// route extends this with its own fields (see BriefBody / BuildBody).
+export type GenerateRequestBody = {
+  title?: string;
+  author?: string;
+  imageUrl?: string;
+  genre?: string;
+  description?: string;
+  longText?: string;
+  editorNotes?: string;
+  praise?: string;
+};
+
 /** The validated, trimmed book fields every generation stage starts from. */
 export type GenerateFields = {
   title: string;
@@ -92,7 +107,9 @@ export type ParsedRequest =
   | { ok: true; fields: GenerateFields }
   | { ok: false; status: number; error: string };
 
-export function parseGenerateRequest(body: Record<string, unknown>): ParsedRequest {
+export function parseGenerateRequest(body: GenerateRequestBody): ParsedRequest {
+  // Defensive even though the fields are typed string|undefined: the body comes
+  // from `req.json()`, so a hostile client could still send a non-string.
   const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
   const title = str(body.title);
   const author = str(body.author);
@@ -129,15 +146,16 @@ export function parseGenerateRequest(body: Record<string, unknown>): ParsedReque
 
 /** Assemble the prompt-ready GenerateInput from validated fields + a fetched cover. */
 export function buildInput(fields: GenerateFields, cover: CoverPart | null): GenerateInput {
-  const hasCover = Boolean(cover && fields.imageUrl);
+  // `cover && fields.imageUrl` narrows cover to non-null in the truthy branch,
+  // so coverSize reads off it without a non-null assertion.
   return {
     title: fields.title,
     author: fields.author,
     genre: fields.genre,
     description: fields.description,
     longText: fields.longText,
-    coverImageUrl: hasCover ? fields.imageUrl : null,
-    coverSize: hasCover ? cover!.size : null,
+    coverImageUrl: cover && fields.imageUrl ? fields.imageUrl : null,
+    coverSize: cover && fields.imageUrl ? cover.size : null,
     editorNotes: fields.editorNotes,
     praise: fields.praise,
   };

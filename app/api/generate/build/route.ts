@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { parseGenerateRequest, buildInput } from "@/lib/agent/input";
+import { parseGenerateRequest, buildInput, type GenerateRequestBody } from "@/lib/agent/input";
 import { fetchImagePart, type CoverPart } from "@/lib/agent/cover";
 import { runBuild } from "@/lib/agent/run-build";
 import { type Brief } from "@/lib/agent/stages/brief";
@@ -10,8 +10,11 @@ export const runtime = "nodejs";
 // further revision. A single render fits comfortably under the limit.
 export const maxDuration = 120;
 
+// Fresh build (just the brief) or a revise (prior html + editor notes).
+type BuildBody = GenerateRequestBody & { brief?: Brief; html?: string; notes?: string };
+
 export async function POST(req: Request): Promise<Response> {
-  let body: Record<string, unknown>;
+  let body: BuildBody;
   try {
     body = await req.json();
   } catch {
@@ -22,11 +25,9 @@ export async function POST(req: Request): Promise<Response> {
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
   if (!body.brief) return NextResponse.json({ error: "brief is required" }, { status: 400 });
 
-  const brief = body.brief as Brief;
-  const priorHtml = typeof body.html === "string" ? body.html.trim() : "";
-  const revise = priorHtml
-    ? { html: priorHtml, notes: typeof body.notes === "string" ? body.notes.trim() || null : null }
-    : null;
+  const brief = body.brief; // narrowed to Brief by the guard above
+  const priorHtml = body.html?.trim() ?? "";
+  const revise = priorHtml ? { html: priorHtml, notes: body.notes?.trim() || null } : null;
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
