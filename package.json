@@ -8,7 +8,10 @@
     "start": "next start",
     "test": "node --test 'lib/**/*.test.ts'",
     "test:e2e": "playwright test",
-    "preview": "next build && next start"
+    "preview": "npm run build && next start",
+    "slides:dev": "slidev slides/slides.md --port 3030 --open",
+    "slides:build": "slidev build slides/slides.md --base /slides/ --out ../public/slides",
+    "prebuild": "npm run slides:build"
   },
   "dependencies": {
     "@google/genai": "^2.7.0",
@@ -20,8 +23,12 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
+    "@slidev/cli": "^52.0.0",
+    "@slidev/theme-seriph": "^0.25.0",
+    "@slidev/types": "^52.0.0",
     "@types/node": "^24.12.0",
     "@types/react": "^19.2.0",
+    "mermaid": "^11.4.0",
     "typescript": "^5.9.3"
   }
 }
