@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import { useEffect, useState, type RefObject } from "react";
 import styles from "../generate.module.css";
 import { FALLBACK_MESSAGES } from "../flow/model";
 import type { Phase } from "../flow/phase";
@@ -8,11 +8,14 @@ import type { Phase } from "../flow/phase";
 // it imperatively by useStreamingIframe (see ../flow/useStreamingIframe.ts).
 //
 // Overlay variants while streaming:
-//   - html empty (pre-first-byte): centered overlay with dot + status label +
-//     fallback message, so the user has copy to read while the model warms up
-//     and the cover image is fetched.
-//   - html populated: small corner pill with just the pulsing dot, so the
+//   - body still empty (<head>/<style> bytes streaming): centered overlay with
+//     dot + status label + fallback message — paint hasn't started yet, so
+//     the user needs copy to read.
+//   - body has children: small corner pill with just the pulsing dot, so the
 //     overlay doesn't obscure the live preview.
+// The switch is gated on iframe.contentDocument.body.firstElementChild rather
+// than html.length, because head-only bytes paint nothing and the overlay
+// shouldn't disappear while the iframe is still blank.
 //
 // During the `briefing` phase the iframe isn't shown (no html yet), and the
 // same dot+label+fallback runs in the empty container. `briefReview` skips
@@ -28,6 +31,33 @@ type Props = {
   onIframeLoad: () => void;
 };
 
+function useHasVisibleBodyContent(
+  iframeRef: RefObject<HTMLIFrameElement | null>,
+  streaming: boolean,
+): boolean {
+  const [hasContent, setHasContent] = useState(false);
+
+  useEffect(() => {
+    if (!streaming) {
+      setHasContent(false);
+      return;
+    }
+    let raf = 0;
+    const check = () => {
+      const body = iframeRef.current?.contentDocument?.body;
+      if (body && body.firstElementChild) {
+        setHasContent(true);
+        return;
+      }
+      raf = requestAnimationFrame(check);
+    };
+    raf = requestAnimationFrame(check);
+    return () => cancelAnimationFrame(raf);
+  }, [streaming, iframeRef]);
+
+  return hasContent;
+}
+
 export function PreviewPane({
   phase,
   html,
@@ -38,9 +68,10 @@ export function PreviewPane({
   iframeRef,
   onIframeLoad,
 }: Props) {
+  const hasVisibleBody = useHasVisibleBodyContent(iframeRef, streaming);
   const showFrame =
     streaming || ((phase === "buildReview" || phase === "saving" || phase === "saved") && Boolean(html));
-  const waitingForFirstBytes = streaming && html.length === 0;
+  const waitingForFirstPaint = streaming && !hasVisibleBody;
 
   return (
     <div className={styles.frameWrap}>
@@ -53,7 +84,7 @@ export function PreviewPane({
             sandbox="allow-same-origin"
             title="Forhåndsvisning av generert side"
           />
-          {streaming && (waitingForFirstBytes ? (
+          {streaming && (waitingForFirstPaint ? (
             <div className={styles.streamOverlayWaiting} aria-hidden="true">
               <span className={styles.streamDot} />
               <span key={streamLabel} className={styles.streamLabel}>
