@@ -53,14 +53,18 @@ export function GenerateForm() {
 
         {phase === "buildReview" && qa && <QaReport qa={qa} />}
 
-        <PreviewPane
-          phase={phase}
-          html={html}
-          busy={busy}
-          streaming={f.streaming}
-          streamLabel={f.streamLabel}
-          fallbackIdx={f.fallbackIdx}
-        />
+        {phase !== "briefReview" && (
+          <PreviewPane
+            phase={phase}
+            html={html}
+            busy={busy}
+            streaming={f.streaming}
+            streamLabel={f.streamLabel}
+            fallbackIdx={f.fallbackIdx}
+            iframeRef={f.iframeRef}
+            onIframeLoad={f.onIframeLoad}
+          />
+        )}
 
         {phase === "buildReview" && (
           <BuildReviewActions

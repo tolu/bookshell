@@ -14,6 +14,7 @@ import {
 } from "./model";
 import { type Phase, deriveStep, isBusy, isStreaming } from "./phase";
 import { postBrief, saveArtifact, streamBuild } from "./requests";
+import { useStreamingIframe } from "./useStreamingIframe";
 
 // All state, side effects, and handlers for the generation flow. The view
 // (GenerateForm + ui/*) is markup-only; everything that isn't JSX lives here.
@@ -34,6 +35,7 @@ export function useGenerateFlow() {
   const [fallbackIdx, setFallbackIdx] = useState(0);
 
   const abortRef = useRef<AbortController | null>(null);
+  const stream = useStreamingIframe();
 
   // Cycle fallback messages while a stage is working.
   useEffect(() => {
@@ -51,6 +53,7 @@ export function useGenerateFlow() {
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     setError(null);
+    stream.reset();
     setPhase("briefing");
     try {
       const next = await postBrief(form, {
@@ -78,9 +81,26 @@ export function useGenerateFlow() {
     setQa(null);
     setHtml("");
     setStreamLabel("Starter…");
+    stream.reset();
+    stream.start();
     setPhase("building");
 
+    // Throttle setHtml so the React tree doesn't re-render per token. The
+    // iframe is fed directly by the stream hook; the accumulator only needs
+    // occasional sync for save/QA/openInNewTab/character display.
     let acc = "";
+    let lastHtmlSync = 0;
+    const syncHtml = (force = false) => {
+      if (typeof performance === "undefined") {
+        if (force) setHtml(acc);
+        return;
+      }
+      const now = performance.now();
+      if (force || now - lastHtmlSync >= 150) {
+        lastHtmlSync = now;
+        setHtml(acc);
+      }
+    };
     try {
       const frames = streamBuild(form, brief, {
         revise: revise ? { html, notes: techNotes } : undefined,
@@ -91,15 +111,18 @@ export function useGenerateFlow() {
           setStreamLabel(frame.label);
         } else if (frame.type === "token") {
           acc += frame.text;
-          setHtml(acc);
+          stream.append(frame.text);
+          syncHtml();
         } else if (frame.type === "qa") {
           setQa({ passed: frame.passed, findings: frame.findings, critic: frame.critic });
         } else if (frame.type === "error") {
+          stream.complete();
           setError(frame.message);
           setHtml(stripArtifactHtml(acc));
           setPhase(acc ? "buildReview" : "briefReview");
           return;
         } else if (frame.type === "done") {
+          stream.complete();
           setHtml(stripArtifactHtml(acc));
           setTechNotes("");
           setPhase("buildReview");
@@ -107,6 +130,7 @@ export function useGenerateFlow() {
         }
       }
       // Stream ended without an explicit done.
+      stream.complete();
       if (acc) {
         setHtml(stripArtifactHtml(acc));
         setPhase("buildReview");
@@ -114,7 +138,11 @@ export function useGenerateFlow() {
         setPhase("briefReview");
       }
     } catch (err) {
-      if ((err as Error).name === "AbortError") return;
+      if ((err as Error).name === "AbortError") {
+        stream.reset();
+        return;
+      }
+      stream.complete();
       setError((err as Error).message);
       setHtml(acc ? stripArtifactHtml(acc) : "");
       setPhase(acc ? "buildReview" : "briefReview");
@@ -136,6 +164,7 @@ export function useGenerateFlow() {
 
   function startOver() {
     abortRef.current?.abort();
+    stream.reset();
     setPhase("idle");
     setBrief(null);
     setHtml("");
@@ -180,6 +209,9 @@ export function useGenerateFlow() {
     onSave,
     startOver,
     openInNewTab,
+    // streaming iframe (bind to the preview <iframe>)
+    iframeRef: stream.iframeRef,
+    onIframeLoad: stream.onIframeLoad,
     // derived
     streaming: isStreaming(phase),
     busy: isBusy(phase),
