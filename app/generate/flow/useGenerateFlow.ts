@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import type { Brief } from "@/lib/gemini/brief";
+import type { Brief } from "@/lib/agent/stages/brief";
 import { stripArtifactHtml } from "@/lib/releases/strip";
 import {
   DEMO,
@@ -10,13 +10,14 @@ import {
   FALLBACK_MESSAGES,
   LONG_LIMIT,
   type FormState,
-  type Phase,
   type QaState,
-} from "./types";
-import { postBrief, saveArtifact, streamBuild } from "./api";
+} from "./model";
+import { type Phase, deriveStep, isBusy, isStreaming } from "./phase";
+import { postBrief, saveArtifact, streamBuild } from "./requests";
 
-// All state, side effects, and handlers for the generation flow. The component
-// is markup-only; everything that isn't JSX lives here.
+// All state, side effects, and handlers for the generation flow. The view
+// (GenerateForm + ui/*) is markup-only; everything that isn't JSX lives here.
+// The phases and their transitions are documented in ./phase.ts.
 export function useGenerateFlow() {
   const searchParams = useSearchParams();
 
@@ -153,15 +154,7 @@ export function useGenerateFlow() {
   }
 
   // ── Derived ─────────────────────────────────────────────────────────────
-  const streaming = phase === "building";
-  const busy = phase === "briefing" || phase === "building" || phase === "saving";
   const longRemaining = LONG_LIMIT - form.longText.length;
-  const step =
-    phase === "idle" || phase === "briefing" || phase === "briefReview"
-      ? 1
-      : phase === "building" || phase === "buildReview"
-        ? 2
-        : 3;
 
   return {
     // state
@@ -188,9 +181,11 @@ export function useGenerateFlow() {
     startOver,
     openInNewTab,
     // derived
-    streaming,
-    busy,
+    streaming: isStreaming(phase),
+    busy: isBusy(phase),
     longRemaining,
-    step,
+    step: deriveStep(phase),
   };
 }
+
+export type GenerateFlow = ReturnType<typeof useGenerateFlow>;

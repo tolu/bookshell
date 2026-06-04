@@ -1,5 +1,5 @@
 import "server-only";
-import { type GenerateInput, coverNote, inputBlock, factsRule } from "./prompt";
+import { type GenerateInput, coverNote, inputBlock, factsRule } from "../input";
 
 // STAGE 1 — the art director. Turns book metadata (+ optional editor steer and
 // praise) into a structured design brief: the concept and creative decisions,

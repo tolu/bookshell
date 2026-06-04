@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { GenerateForm } from "./generate-form";
+import { GenerateForm } from "./GenerateForm";
 import styles from "./generate.module.css";
 
 export const metadata: Metadata = {

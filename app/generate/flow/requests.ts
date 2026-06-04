@@ -1,15 +1,10 @@
-import type { Brief } from "@/lib/gemini/brief";
-import type { QaVerdict } from "@/lib/gemini/qa";
-import type { FormState, QaState } from "./types";
+import type { Brief } from "@/lib/agent/stages/brief";
+import { readFrames, type BuildFrame } from "@/lib/generate/protocol";
+import type { FormState, QaState } from "./model";
 
-// NDJSON frames the build route streams. Mirrors the server's Frame union, but
-// kept here so the client owns its own wire contract.
-export type BuildFrame =
-  | { type: "status"; label: string }
-  | { type: "token"; text: string }
-  | { type: "qa"; passed: boolean; findings: QaState["findings"]; critic: QaVerdict | null }
-  | { type: "done" }
-  | { type: "error"; message: string };
+// The client side of the generation API: one function per endpoint. The wire
+// frame type (BuildFrame) is owned by lib/generate/protocol and shared with the
+// route handler, so the two ends can't drift.
 
 // ── Stage 1: brief (initial + feedback iterations) ────────────────────────
 export async function postBrief(
@@ -30,7 +25,6 @@ export async function postBrief(
 }
 
 // ── Stage 2/3: build (fresh) or revise → streamed NDJSON frames ───────────
-// Async generator: each yielded frame is one parsed NDJSON line.
 export async function* streamBuild(
   form: FormState,
   brief: Brief,
@@ -50,26 +44,7 @@ export async function* streamBuild(
     const j = await res.json().catch(() => ({}));
     throw new Error(j.error ?? `HTTP ${res.status}`);
   }
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buf = "";
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    let nl: number;
-    while ((nl = buf.indexOf("\n")) !== -1) {
-      const line = buf.slice(0, nl);
-      buf = buf.slice(nl + 1);
-      if (!line.trim()) continue;
-      try {
-        yield JSON.parse(line) as BuildFrame;
-      } catch {
-        // Ignore malformed lines (partial flush, keep-alive noise).
-      }
-    }
-  }
+  yield* readFrames(res.body);
 }
 
 // ── Persist the finished artifact + provenance ────────────────────────────

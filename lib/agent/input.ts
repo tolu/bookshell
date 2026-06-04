@@ -1,10 +1,12 @@
 import "server-only";
+import { type CoverPart } from "./cover";
 
 // Shared building blocks for the generation pipeline. The page is produced in
-// stages — an AD brief (lib/gemini/brief.ts), a frontend build and revise
-// (lib/gemini/frontend.ts), and a QA critic (lib/gemini/qa.ts). The fragments
-// that every stage needs to agree on (the input data, the cover handling, the
-// no-fabrication contract) live here so they can't drift apart.
+// stages — an AD brief (lib/agent/stages/brief.ts), a frontend build and revise
+// (lib/agent/stages/build.ts), and a QA critic (lib/agent/stages/qa.ts). The
+// fragments that every stage needs to agree on (the input data, the cover
+// handling, the no-fabrication contract) live here so they can't drift apart.
+// This file also owns request parsing, so both API routes validate identically.
 // See README "Generating artifacts" for the reasoning behind each constraint.
 
 export type GenerateInput = {
@@ -65,4 +67,96 @@ export function factsRule(input: GenerateInput): string {
 - ${praiseClause}
 - Do NOT fabricate award badges, bestseller/sales claims, author biography, publication date, page count, ISBN, or any fact not present in INPUT.
 - Pull-quotes from the book must be VERBATIM fragments of the supplied pitch or excerpt. If the input doesn't support a section, don't invent one to fill space.`;
+}
+
+// ── Request parsing ─────────────────────────────────────────────────────────
+// Both generate endpoints (brief, build) accept the same book fields off the
+// wire. Parsing/validating them in one place keeps the two routes honest about
+// what a valid request is.
+
+export const LONG_TEXT_LIMIT = 2000;
+
+// The raw request body shared by both generate endpoints. This is the wire
+// shape (what a well-behaved client sends); the values are still validated at
+// runtime by parseGenerateRequest, since `req.json()` can't be trusted. Each
+// route extends this with its own fields (see BriefBody / BuildBody).
+export type GenerateRequestBody = {
+  title?: string;
+  author?: string;
+  imageUrl?: string;
+  genre?: string;
+  description?: string;
+  longText?: string;
+  editorNotes?: string;
+  praise?: string;
+};
+
+/** The validated, trimmed book fields every generation stage starts from. */
+export type GenerateFields = {
+  title: string;
+  author: string;
+  genre: string;
+  description: string;
+  longText: string;
+  imageUrl: string | null;
+  editorNotes: string | null;
+  praise: string | null;
+};
+
+export type ParsedRequest =
+  | { ok: true; fields: GenerateFields }
+  | { ok: false; status: number; error: string };
+
+export function parseGenerateRequest(body: GenerateRequestBody): ParsedRequest {
+  // Defensive even though the fields are typed string|undefined: the body comes
+  // from `req.json()`, so a hostile client could still send a non-string.
+  const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const title = str(body.title);
+  const author = str(body.author);
+  const genre = str(body.genre);
+  const description = str(body.description);
+  const longText = str(body.longText);
+  const imageUrl = str(body.imageUrl);
+
+  if (!title || !author || !genre || !description || !longText) {
+    return {
+      ok: false,
+      status: 400,
+      error: "title, author, genre, description, longText are all required",
+    };
+  }
+  if (longText.length > LONG_TEXT_LIMIT) {
+    return { ok: false, status: 400, error: `longText exceeds ${LONG_TEXT_LIMIT} characters` };
+  }
+
+  return {
+    ok: true,
+    fields: {
+      title,
+      author,
+      genre,
+      description,
+      longText,
+      imageUrl: imageUrl || null,
+      editorNotes: str(body.editorNotes) || null,
+      praise: str(body.praise) || null,
+    },
+  };
+}
+
+/** Assemble the prompt-ready GenerateInput from validated fields + a fetched cover. */
+export function buildInput(fields: GenerateFields, cover: CoverPart | null): GenerateInput {
+  // `cover && fields.imageUrl` narrows cover to non-null in the truthy branch,
+  // so coverSize reads off it without a non-null assertion.
+  return {
+    title: fields.title,
+    author: fields.author,
+    genre: fields.genre,
+    description: fields.description,
+    longText: fields.longText,
+    coverImageUrl: cover && fields.imageUrl ? fields.imageUrl : null,
+    coverSize: cover && fields.imageUrl ? cover.size : null,
+    editorNotes: fields.editorNotes,
+    praise: fields.praise,
+  };
 }
