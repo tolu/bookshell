@@ -15,7 +15,17 @@ type Props = {
   onUpdate: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
   onSubmit: () => void;
   onStartOver: () => void;
+  onHallucinate: () => void;
 };
+
+// Four-point sparkle — the marker for AI-powered actions in this app.
+function SparkleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 0c.5 5.5 6 11 12 12-6 1-11.5 6.5-12 12-.5-5.5-6-11-12-12C6 11 11.5 5.5 12 0Z" />
+    </svg>
+  );
+}
 
 export function BookMetadataForm({
   form,
@@ -28,7 +38,9 @@ export function BookMetadataForm({
   onUpdate,
   onSubmit,
   onStartOver,
+  onHallucinate,
 }: Props) {
+  const hallucinating = phase === "hallucinating";
   return (
     <form
       className={styles.form}
@@ -37,6 +49,17 @@ export function BookMetadataForm({
         onSubmit();
       }}
     >
+      <button
+        type="button"
+        className={styles.aiButton}
+        data-working={hallucinating}
+        onClick={onHallucinate}
+        disabled={busy}
+      >
+        <SparkleIcon />
+        {hallucinating ? "Hallusinerer…" : "Halluciner en bok"}
+      </button>
+
       <label className={styles.field}>
         <span>Tittel</span>
         <input required disabled={locked} value={form.title}

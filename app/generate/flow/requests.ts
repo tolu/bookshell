@@ -1,10 +1,21 @@
 import type { Brief } from "@/lib/agent/stages/brief";
+import type { HallucinatedForm } from "@/lib/agent/stages/hallucinate";
 import { readFrames, type BuildFrame } from "@/lib/generate/protocol";
 import type { FormState, QaState } from "./model";
 
 // The client side of the generation API: one function per endpoint. The wire
 // frame type (BuildFrame) is owned by lib/generate/protocol and shared with the
 // route handler, so the two ends can't drift.
+
+// ── Demo helper: hallucinate a whole book to seed the form ────────────────
+export async function postHallucinate(
+  opts: { signal?: AbortSignal } = {}
+): Promise<HallucinatedForm> {
+  const res = await fetch("/api/generate/hallucinate", { method: "POST", signal: opts.signal });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+  return json.form as HallucinatedForm;
+}
 
 // ── Stage 1: brief (initial + feedback iterations) ────────────────────────
 export async function postBrief(

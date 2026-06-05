@@ -101,6 +101,42 @@
 .primary:disabled,
 .secondary:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
 
+/* AI-powered action: sparkle marker + a gentle sparkle pulse while working. */
+.aiButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  align-self: flex-start;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 0.95rem;
+  border: 1px solid color-mix(in oklch, var(--shell-brand) 35%, transparent);
+  border-radius: 999px;
+  padding: 0.7rem 1.3rem;
+  margin-block-end: 0.25rem;
+  cursor: pointer;
+  background: color-mix(in oklch, var(--shell-brand) 12%, var(--shell-surface));
+  color: var(--shell-brand);
+  transition: transform 0.14s, background 0.18s, border-color 0.18s;
+}
+.aiButton:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--shell-brand) 20%, var(--shell-surface));
+  border-color: var(--shell-brand);
+  transform: translateY(-1px);
+}
+.aiButton:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+.aiButton svg { color: var(--shell-brand); }
+/* Only the sparkle pulses, and gently — opacity fade, no scale. */
+.aiButton[data-working="true"] svg { animation: sparklePulse 1.6s ease-in-out infinite; }
+
+@keyframes sparklePulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aiButton[data-working="true"] svg { animation: none; }
+}
+
 .error {
   background: color-mix(in oklch, #c0392b 12%, var(--shell-surface));
   border: 1px solid color-mix(in oklch, #c0392b 40%, transparent);

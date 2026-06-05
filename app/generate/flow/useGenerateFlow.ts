@@ -13,7 +13,7 @@ import {
   type QaState,
 } from "./model";
 import { type Phase, deriveStep, isBusy, isStreaming } from "./phase";
-import { postBrief, saveArtifact, streamBuild } from "./requests";
+import { postBrief, postHallucinate, saveArtifact, streamBuild } from "./requests";
 import { useStreamingIframe } from "./useStreamingIframe";
 
 // All state, side effects, and handlers for the generation flow. The view
@@ -46,6 +46,38 @@ export function useGenerateFlow() {
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  // ── Demo helper: hallucinate a whole book into the form ─────────────────
+  // Self-contained one-shot — invents every text field (except the cover URL and
+  // the editor's steering note, which we deliberately leave blank), then drops
+  // back to idle so the editor can run the normal flow on it.
+  async function hallucinate() {
+    // Hallucinating replaces the whole form — warn first if the editor has typed
+    // anything, so a stray click can't wipe real work.
+    const hasContent = Object.values(form).some((v) => v.trim() !== "");
+    if (
+      hasContent &&
+      !window.confirm(
+        "Skjemaet inneholder allerede informasjon. Å hallusinere overskriver alt. Vil du fortsette?"
+      )
+    ) {
+      return;
+    }
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setError(null);
+    setPhase("hallucinating");
+    try {
+      const fields = await postHallucinate({ signal: ctrl.signal });
+      setForm({ ...EMPTY, ...fields });
+      setPhase("idle");
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return;
+      setError((err as Error).message);
+      setPhase("idle");
+    }
+  }
 
   // ── Stage 1: brief (initial + feedback iterations) ──────────────────────
   async function generateBrief(feedbackText?: string) {
@@ -204,6 +236,7 @@ export function useGenerateFlow() {
     setTechNotes,
     setPhase,
     // handlers
+    hallucinate,
     generateBrief,
     build,
     onSave,

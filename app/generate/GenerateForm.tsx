@@ -31,6 +31,7 @@ export function GenerateForm() {
         onUpdate={f.update}
         onSubmit={() => f.generateBrief()}
         onStartOver={f.startOver}
+        onHallucinate={f.hallucinate}
       />
 
       <aside className={styles.preview}>

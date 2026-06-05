@@ -18,6 +18,7 @@
 
 export type Phase =
   | "idle"
+  | "hallucinating"
   | "briefing"
   | "briefReview"
   | "building"
@@ -27,14 +28,17 @@ export type Phase =
 
 /** Which of the three progress steps (Brief · Side · Lagre) a phase belongs to. */
 export function deriveStep(phase: Phase): 1 | 2 | 3 {
-  if (phase === "idle" || phase === "briefing" || phase === "briefReview") return 1;
+  if (phase === "idle" || phase === "hallucinating" || phase === "briefing" || phase === "briefReview")
+    return 1;
   if (phase === "building" || phase === "buildReview") return 2;
   return 3;
 }
 
 /** True while a stage is working and the form should be locked. */
 export function isBusy(phase: Phase): boolean {
-  return phase === "briefing" || phase === "building" || phase === "saving";
+  return (
+    phase === "hallucinating" || phase === "briefing" || phase === "building" || phase === "saving"
+  );
 }
 
 /** True only while HTML tokens are actively streaming in. */
