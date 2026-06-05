@@ -9,7 +9,7 @@
     "test": "node --test 'lib/**/*.test.ts'",
     "test:e2e": "playwright test",
     "preview": "npm run build && next start",
-    "slides:dev": "slidev slides/slides.md --port 3030 --open",
+    "slides:dev": "slidev slides/slides.md --base /slides/ --port 3030 --open",
     "slides:build": "slidev build slides/slides.md --base /slides/ --out ../public/slides",
     "prebuild": "npm run slides:build"
   },

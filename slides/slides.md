@@ -46,20 +46,21 @@ layout: default
 # Where this came from
 
 <div class="lede">
-Bjørn asked: <em>"How would you actually generate promo pages with an LLM and stand them up inside a Next.js app — safely, with SEO intact, in a way you'd be comfortable showing a real visitor?"</em>
+Bjørn D.: <em>"How could you generate promo book-release pages with AI and use them inside a Next.js app in a pre-existing application shell?"</em>
 </div>
 
 <div class="questions">
-That's the question this experiment pokes at. The interesting parts are mostly technical:
+Technically interesting parts:
 <ul>
-  <li><strong>SEO &amp; routing.</strong> The app shell has to own metadata, JSON-LD, canonical URLs, the buy flow. The artifact owns the visual body. How do you compose them in Next's App Router without one breaking the other?</li>
-  <li><strong>Trusting generated HTML.</strong> Sanitise, scope, isolate. What's strictly necessary and what's defense-in-depth?</li>
-  <li><strong>Architecture.</strong> Where does the agent pipeline live? How do you stream a 2000-line HTML document into a preview without thrashing the iframe? Where do you put the human?</li>
+  <li><strong>SEO &amp; routing.</strong> The app shell has to own metadata, JSON-LD, canonical URLs, the purchase flow. The artifact owns the visual body. How do you compose them in Next's App Router without one breaking the other?</li>
+  <li><strong>Trusting generated HTML.</strong> Sanitize, scope, isolate. What's strictly necessary and what's defense-in-depth?</li>
+  <li><strong>Architecture.</strong> Where does the agent pipeline live? Where do you put the human? How to make the waiting for a response and the ability to control the output?</li>
+  <li><strong>Prompt engineering.</strong> How would you encode a AD bureau to prompts and skills?</li>
 </ul>
 </div>
 
 <div class="caveat">
-This is an experiment, not a shipped product. The slides are an honest writeup of what worked, what didn't, and where the rough edges still are.
+This is an experiment, I'm no expert 😅.
 </div>
 
 <style>
@@ -76,18 +77,20 @@ This is an experiment, not a shipped product. The slides are an honest writeup o
 layout: default
 ---
 
-# What "done" looks like
+# Results
 
-<div class="shot-wrap">
-  <img :src="'/slides/slides-assets/release-page.png'" alt="Generated release page for 'Alt starter med en drøm' rendered in the Elate·Bok app shell" />
-  <p class="caption">
-    Shell is Next.js — header, sticky buy bar, SEO, JSON-LD. Body between them is AI-generated HTML, scoped + sanitised at the server, dropped into <code>&lt;main&gt;</code>.
-  </p>
+<div style="height: 100%">
+  <div class="shot-wrap">
+    <video :src="'/slides/slides-assets/gardens-of-the-moon.mp4'" autoplay loop muted></video>
+    <p class="caption">
+      Shell is Next.js — header, sticky buy bar, SEO, JSON-LD. Body between them is AI-generated HTML, scoped + sanitised at the server, dropped into <code>&lt;main&gt;</code>.<br /><a href="https://bookshell-puce.vercel.app/">Bookshell</a>
+    </p>
+  </div>
 </div>
 
 <style>
-.shot-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: center; margin-top: 0.5rem; }
-.shot-wrap img { max-block-size: 70vh; width: 100%; object-fit: contain; border: 1px solid var(--shell-line); border-radius: 8px; box-shadow: 0 18px 40px -20px rgb(0 0 0 / 0.25); }
+.shot-wrap { display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; align-items: center; margin-top: 0.5rem; height: 90%; }
+.shot-wrap video { height: 100%; object-fit: contain; border: 1px solid var(--shell-line); border-radius: 8px; box-shadow: 0 18px 40px -20px rgb(0 0 0 / 0.25); }
 .caption { color: var(--shell-muted); font-size: 1rem; line-height: 1.55; }
 .caption code { font-family: var(--font-mono); font-size: 0.9em; }
 </style>
@@ -124,7 +127,7 @@ Dashed = user-visible streaming / approval gate · Solid = synchronous server ca
 </div>
 
 <style>
-.legend { font-size: 0.85rem; color: var(--shell-muted); text-align: center; margin-top: -1rem; }
+.legend { font-size: 0.85rem; color: var(--shell-muted); text-align: center; margin-top: 1rem; }
 .legend code { font-family: var(--font-mono); font-size: 0.9em; }
 </style>
 
@@ -156,9 +159,9 @@ flowchart LR
 
 <Alternatives>
 <ul>
-  <li><strong>Single mega-prompt</strong> — was the prior state. Shorter latency, but prompts get tangled and there's nowhere to insert a human gate.</li>
-  <li><strong>Autonomous critic→revise loop</strong> — removes the editor, faster, but no trust layer. Drift compounds.</li>
-  <li><strong>Tool-calling agent picks sub-skills</strong> — flexible, but harder to constrain to one design discipline per stage.</li>
+  <li><strong>Single mega-prompt</strong> — was the first attempt. Shorter latency, but nowhere to insert a human gate.</li>
+  <li><strong>Autonomous critic → revise loop</strong> — removes the editor, but no trust layer. Potential for drift.</li>
+  <li><strong>Tool-calling agent picks sub-skills</strong> — flexible, perhaps better, but larger project.</li>
 </ul>
 </Alternatives>
 
@@ -221,6 +224,19 @@ Source: <code>app/generate/flow/phase.ts</code>. Both feedback loops the app exi
 <style>
 .legend2 { font-size: 0.9rem; color: var(--shell-muted); margin-top: 0.5rem; max-inline-size: 72ch; }
 .legend2 code { font-family: var(--font-mono); font-size: 0.9em; background: var(--shell-surface); border: 1px solid var(--shell-line); padding: 0.05em 0.3em; border-radius: 3px; }
+</style>
+
+---
+layout: default
+---
+
+# LLM vs Agent vs Harness
+<div>
+  <img :src="'/slides/slides-assets/llm-agent-harness-infographic.png'">
+</div>
+
+<style>
+  img { margin-top: -1.5em; transform: scale(0.95); }
 </style>
 
 ---
@@ -297,7 +313,7 @@ keep it plain and 2–4 sentences.
 .agent-meta { display: grid; gap: 0.25rem; font-size: 0.85rem; color: var(--shell-muted); margin-bottom: 0.75rem; }
 .agent-meta strong { color: var(--shell-ink); font-weight: 600; min-inline-size: 5.5rem; display: inline-block; }
 .agent-meta code { font-family: var(--font-mono); font-size: 0.9em; }
-.prompt-scroll { max-block-size: 58vh; overflow-y: auto; border: 1px solid var(--shell-line); border-radius: 6px; }
+.prompt-scroll { max-block-size: 50vh; overflow-y: auto; border: 1px solid var(--shell-line); border-radius: 6px; }
 .prompt-scroll pre { margin: 0; }
 </style>
 
@@ -311,7 +327,6 @@ layout: default
 <div><strong>Model</strong> · gemini-3-flash-preview, temperature 0.95, thinkingLevel HIGH, <strong>streaming on</strong></div>
 <div><strong>Input</strong> · book metadata + the AD's brief + optional cover</div>
 <div><strong>Output</strong> · raw HTML (<code>&lt;!DOCTYPE html&gt;</code> → <code>&lt;/html&gt;</code>), streamed token-by-token</div>
-<div><strong>Honest caveat</strong> · this prompt is one long file. In a real product it would be a project of its own — versioned, A/B'd, regression-tested against a fixture set, observed in prod.</div>
 </div>
 
 <div class="prompt-scroll">
@@ -411,8 +426,6 @@ LENGTH
 <Alternatives>
 <ul>
   <li><strong>A fatter model</strong> (Claude Opus, Gemini Pro) — fewer footguns up front, more taste, less prompt tuning. Cost goes up by ~10×.</li>
-  <li><strong>Lean on a real frontend designer.</strong> Hand-curated component library + the LLM only picks combinations from it. Loses some "creative" output, gains consistency and brand control.</li>
-  <li><strong>Treat the prompt as the product.</strong> Versioned, broken into composable fragments, evaluated against a fixture corpus, regression-tested on every change, with traces piped to observability. Prompt engineering is easy to get <em>something</em> out of — production needs the process around it.</li>
 </ul>
 </Alternatives>
 
@@ -420,7 +433,7 @@ LENGTH
 .agent-meta { display: grid; gap: 0.25rem; font-size: 0.85rem; color: var(--shell-muted); margin-bottom: 0.75rem; }
 .agent-meta strong { color: var(--shell-ink); font-weight: 600; min-inline-size: 6.5rem; display: inline-block; }
 .agent-meta code { font-family: var(--font-mono); font-size: 0.9em; }
-.prompt-scroll { max-block-size: 45vh; overflow-y: auto; border: 1px solid var(--shell-line); border-radius: 6px; }
+.prompt-scroll { max-block-size: 40vh; overflow-y: auto; border: 1px solid var(--shell-line); border-radius: 6px; }
 .prompt-scroll pre { margin: 0; }
 </style>
 
@@ -434,7 +447,6 @@ layout: default
 <div><strong>Model</strong> · gemini-3-flash-preview, temperature 0.4, thinkingLevel MEDIUM, structured JSON</div>
 <div><strong>Input</strong> · book + brief + generated HTML + deterministic lint findings (as ground truth)</div>
 <div><strong>Output</strong> · scores 1–5 (conceptMotif · sellability · hierarchyLegibility · genreRead · copy · craft) + issues with concrete fixes + pass/fail</div>
-<div><strong>Crucially</strong> · advisory only. <strong>Never auto-acted.</strong> The editor sees the verdict and decides.</div>
 </div>
 
 <div class="prompt-scroll">
@@ -487,7 +499,6 @@ GUIDANCE
 <ul>
   <li><strong>Lint-only</strong> — fast, deterministic, but blind to taste (sellability, hierarchy).</li>
   <li><strong>Critic-only</strong> — catches taste but misses objective rules and can hallucinate findings.</li>
-  <li><strong>Auto-revise loop (no editor)</strong> — risk of runaway cost and design drift; without a human stop button, the model rewrites the page to chase its own taste.</li>
 </ul>
 </Alternatives>
 
@@ -495,7 +506,7 @@ GUIDANCE
 .agent-meta { display: grid; gap: 0.25rem; font-size: 0.85rem; color: var(--shell-muted); margin-bottom: 0.75rem; }
 .agent-meta strong { color: var(--shell-ink); font-weight: 600; min-inline-size: 5.5rem; display: inline-block; }
 .agent-meta code { font-family: var(--font-mono); font-size: 0.9em; }
-.prompt-scroll { max-block-size: 40vh; overflow-y: auto; border: 1px solid var(--shell-line); border-radius: 6px; }
+.prompt-scroll { max-block-size: 50vh; overflow-y: auto; border: 1px solid var(--shell-line); border-radius: 6px; }
 .prompt-scroll pre { margin: 0; }
 </style>
 
@@ -503,21 +514,21 @@ GUIDANCE
 layout: default
 ---
 
-# Model choice — Gemini 3 Flash
+# Model choice — Gemini 3 Flash (preview)
 
 <div class="model-grid">
 
   <div>
-    <h2>Why this one, honestly</h2>
+    <h2>Why?</h2>
     <ul>
-      <li><strong>Cost</strong> — input $0.50, output $3.00 per 1M tokens. Cheap enough that a single book run is well under coffee money.</li>
-      <li><strong>Speed</strong> — the build streams 30k+ tokens in under a minute. Fast enough that the editor doesn't lose attention.</li>
-      <li><strong>I'd used it before.</strong> That's a real reason — it's the model I had API keys for and existing prompt instincts about. Not a benchmarks decision.</li>
+      <li><strong>Cost</strong> — input $0.50, output $3.00 per 1M tokens. Cheap experiment.</li>
+      <li><strong>Speed</strong> — streams 30k+ tokens in under a minute. Fast enough that you don't lose attention.</li>
+      <li><strong>Familiarity.</strong> I have the API keys. Not a benchmarks decision.</li>
     </ul>
   </div>
 
   <div>
-    <h2>What one book actually costs</h2>
+    <h2>Cost per book</h2>
     <ul>
       <li><strong>Brief</strong> — ~$0.005, structured JSON, small output.</li>
       <li><strong>Build</strong> — ~$0.025-0.05, the expensive stage, ~30k output tokens.</li>
@@ -530,10 +541,10 @@ layout: default
 
 <Alternatives>
 <ul>
-  <li><strong>Vercel AI SDK</strong> — provider-agnostic facade, swap models without touching call sites. Right call if you want to A/B providers or hedge against a single vendor.</li>
-  <li><strong>Claude Sonnet 4.6</strong> — stronger reasoning, ~3× the price, slower stream. Picks when quality &gt; speed (e.g. legal copy, technical books).</li>
-  <li><strong><code>gemini-2.5-flash</code></strong> — stable, ~20% cheaper, weaker codegen. Reasonable fallback.</li>
-  <li><strong>A fatter model just for the build stage</strong> (Claude Opus, Gemini Pro) — mixed pipeline: cheap-fast for brief + QA, expensive-good for the HTML. Per-page cost goes up ~10× but design quality often jumps.</li>
+  <li><strong>Vercel AI SDK</strong> — provider-agnostic facade, swap models without touching call sites. Easier to A/B providers or add skills.</li>
+  <li><strong>Claude Sonnet 4.6</strong> — stronger reasoning, ~3× the price, slower stream.</li>
+  <li><strong><code>gemini-2.5-flash</code></strong> — stable, ~20% cheaper, weaker codegen.</li>
+  <li><strong>A bigger model for the build stage</strong> (Claude Opus, Gemini Pro) — mixed pipeline: cheap-fast for brief + QA, expensive-good for the HTML. Per-page cost goes up ~10×.</li>
 </ul>
 </Alternatives>
 
@@ -550,7 +561,7 @@ layout: default
 layout: default
 ---
 
-# Deterministic lint — the spec, in code
+# Output quality assurance (lint)
 
 <div class="lint-grid">
 
@@ -559,8 +570,8 @@ layout: default
     <ul>
       <li>Forbidden tags (<code>&lt;script&gt;</code>, <code>&lt;iframe&gt;</code>, <code>&lt;form&gt;</code>, …)</li>
       <li>Hallucinated external URLs (only the input cover allowed)</li>
-      <li><code>light-dark()</code> — broken for the artist's fixed-palette world</li>
-      <li><code>overflow: hidden/auto/scroll</code> on root — silently kills scroll-timeline</li>
+      <li>no <code>light-dark()</code> — broken for the artist's fixed-palette world</li>
+      <li><code>overflow: hidden/auto/scroll</code> on root — kills scroll-timeline</li>
       <li>Invalid <code>animation-range</code> keywords (no <code>center</code>/<code>middle</code>/etc.)</li>
       <li><code>javascript:</code> URLs</li>
     </ul>
@@ -579,7 +590,7 @@ layout: default
 </div>
 
 <div class="punch">
-The same module — <code>lib/releases/lint.ts</code> — runs <strong>server-side</strong> feeding the QA critic, <strong>client-side</strong> as a warning pass, and is the source of truth the prompts cite. Spec lives once, enforced in one place.
+The same module — <code>lib/releases/lint.ts</code> — runs <strong>server-side</strong> feeding the QA critic, <strong>client-side</strong> as a warning pass, and is the source of truth the prompts cite.
 </div>
 
 <Alternatives>
@@ -587,6 +598,7 @@ The same module — <code>lib/releases/lint.ts</code> — runs <strong>server-si
   <li><strong>Real-browser render + Lighthouse / axe-core</strong> — pixel-level a11y + perf checks, much slower, runs a headless Chrome per build.</li>
   <li><strong>Visual snapshot regression</strong> — catches drift between builds, but blind to first-build defects.</li>
   <li><strong>Post-hoc human review</strong> — what we'd otherwise do; doesn't scale per book.</li>
+  <li><strong>Prompt engineering</strong> — custom agents with more skills and checks.</li>
 </ul>
 </Alternatives>
 
@@ -605,7 +617,7 @@ The same module — <code>lib/releases/lint.ts</code> — runs <strong>server-si
 layout: default
 ---
 
-# Editor's three touchpoints
+# Editor's touch points
 
 <div class="touchpoints">
 
@@ -649,6 +661,8 @@ layout: default
 ---
 
 # Streaming HTML into a live iframe
+
+> `iframe` content displayed as soon as we have the first body child in the markup
 
 <div class="streaming-diagram">
 
@@ -752,17 +766,17 @@ layout: default
 
 <div class="prose">
 
-## The trap
+## First attempt
 
-The first thing we tried: store the streaming HTML in React state, pass it to `<iframe srcdoc={html}>`. Every token re-renders. Every re-render is a new `srcdoc` value. The iframe sees a new document and re-navigates — every. single. token.
+Store the streaming HTML in React state, pass it to `<iframe srcdoc={html}>`. Every token re-renders. Causes `iframe` "navigation" for every change.
 
-Result: the iframe spends the whole stream in a navigation thrash and ends up blank.
+Result: faster visual feedback but often crashed iframe and left it blank on completion 🙈.
 
-## What works
+## What worked
 
-Mount the iframe **once**. Reach for its `contentDocument` and feed the browser's own incremental HTML parser directly via `doc.open()` / `doc.write(chunk)` / `doc.close()`. Chunks land outside the React tree — no re-render, no re-navigate, no blank.
+Mount the iframe **once**. Use `contentDocument` and feed the browser's own incremental HTML parser directly via `doc.open()` / `doc.write(chunk)` / `doc.close()`. Chunks land outside the React tree.
 
-The browser is already an HTML streaming parser. Use it.
+The browser is already an HTML streaming parser. Use the platform.
 
 </div>
 
@@ -881,7 +895,6 @@ export async function* readFrames(
   <li><strong>SSE (<code>text/event-stream</code>)</strong> — built-in <code>EventSource</code>, native event names. But <code>EventSource</code> is GET-only — needs a fetch+SSE polyfill to POST the body.</li>
   <li><strong>WebSocket</strong> — bidirectional, overkill for one-way streaming, requires a real server.</li>
   <li><strong>Chunked plain text with a separator</strong> — simpler, but no frame types means you can't multiplex <code>status</code> / <code>token</code> / <code>qa</code> / <code>done</code> on the same channel.</li>
-  <li><strong>Protobuf / msgpack</strong> — smaller payload, opaque on the wire. Reach for it when you're shipping megabytes, not kilobytes.</li>
 </ul>
 </Alternatives>
 
