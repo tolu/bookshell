@@ -28,7 +28,7 @@ class: text-center
 
 # Book in the (App)Shell
 
-<div class="subtitle">An experiment in human-in-the-loop generation</div>
+<div class="subtitle">An experiment in human-in-the-loop HTML-generation</div>
 
 <div class="kicker">Elate<span>·</span>Bok</div>
 
@@ -46,16 +46,18 @@ layout: default
 # Where this came from
 
 <div class="lede">
-Bjørn D.: <em>"How could you generate promo book-release pages with AI and use them inside a Next.js app in a pre-existing application shell?"</em>
+Bjørn D.: <em>"I think I have something for you..."</em>
 </div>
+
+<blockquote>The Gist: <i>how to AI-generate book release pages and inject inside NextJS application shell</i></blockquote>
 
 <div class="questions">
 Technically interesting parts:
 <ul>
-  <li><strong>SEO &amp; routing.</strong> The app shell has to own metadata, JSON-LD, canonical URLs, the purchase flow. The artifact owns the visual body. How do you compose them in Next's App Router without one breaking the other?</li>
-  <li><strong>Trusting generated HTML.</strong> Sanitize, scope, isolate. What's strictly necessary and what's defense-in-depth?</li>
-  <li><strong>Architecture.</strong> Where does the agent pipeline live? Where do you put the human? How to make the waiting for a response and the ability to control the output?</li>
-  <li><strong>Prompt engineering.</strong> How would you encode a AD bureau to prompts and skills?</li>
+  <li><strong>SEO &amp; routing.</strong></li>
+  <li><strong>Trusting generated HTML.</strong></li>
+  <li><strong>Architecture.</strong></li>
+  <li><strong>Prompt engineering.</strong></li>
 </ul>
 </div>
 
@@ -73,11 +75,18 @@ This is an experiment, I'm no expert 😅.
 .caveat { margin-top: 1.5rem; font-size: 0.9rem; color: var(--shell-muted); font-style: italic; max-inline-size: 64ch; }
 </style>
 
+<!--
+* **SEO & routing** - The app shell has to own metadata, JSON-LD, canonical URLs, the purchase flow. The artifact owns the visual body. How do you compose them in Next's App Router without one breaking the other?</li>
+* **Trusting generated HTML** - Sanitize, scope, isolate. What's strictly necessary and what's defense-in-depth?</li>
+* **Architecture** - Where does the agent pipeline live? Where do you put the human? How to make the waiting for a response and the ability to control the output?</li>
+* **Prompt engineering** - How would you encode a AD bureau to prompts and skills?</li>
+-->
+
 ---
 layout: default
 ---
 
-# Results
+# Results: <https://bookshell-puce.vercel.app/>
 
 <div style="height: 100%">
   <div class="shot-wrap">
@@ -131,6 +140,12 @@ Dashed = user-visible streaming / approval gate · Solid = synchronous server ca
 .legend code { font-family: var(--font-mono); font-size: 0.9em; }
 </style>
 
+<!--
+Caveats:
+* no memory, roundtrips are new prompts
+* fake Sanity (and Vercel blob)
+-->
+
 ---
 layout: default
 ---
@@ -159,11 +174,17 @@ flowchart LR
 
 <Alternatives>
 <ul>
-  <li><strong>Single mega-prompt</strong> — was the first attempt. Shorter latency, but nowhere to insert a human gate.</li>
-  <li><strong>Autonomous critic → revise loop</strong> — removes the editor, but no trust layer. Potential for drift.</li>
-  <li><strong>Tool-calling agent picks sub-skills</strong> — flexible, perhaps better, but larger project.</li>
+  <li><strong>Single mega-prompt</strong></li>
+  <li><strong>Autonomous critic → revise loop</strong></li>
+  <li><strong>Tool-calling agent picks sub-skills</strong></li>
 </ul>
 </Alternatives>
+
+<!--
+* **mega prompt**: shorter latency, no human gate. I felt left out
+* **autonomous revise-loop**: unclear outputs, the javascript trap (the good parts). No trust-layer, drift potential. 
+* tools/skills: scrollytelling skill super large, not simple with gemini, difference between LLM, Agent, Harness when using specialized system prompts?
+-->
 
 ---
 layout: default
@@ -238,6 +259,10 @@ layout: default
 <style>
   img { margin-top: -1.5em; transform: scale(0.95); }
 </style>
+
+<!--
+lite för min egen del, kände att jag aldrig har tänkt över det så mycket. Speciellt när det kommer till skills vs context token savings.
+-->
 
 ---
 layout: default
@@ -510,6 +535,10 @@ GUIDANCE
 .prompt-scroll pre { margin: 0; }
 </style>
 
+<!--
+första omgång var denna automatiskt och skickade tillbaka till frontend vid "failed", men hade som sagt problem med javascript och utan minne i frontend tror jag inte det var så bra.
+-->
+
 ---
 layout: default
 ---
@@ -613,48 +642,9 @@ The same module — <code>lib/releases/lint.ts</code> — runs <strong>server-si
 .punch code { font-family: var(--font-mono); font-size: 0.88em; }
 </style>
 
----
-layout: default
----
-
-# Editor's touch points
-
-<div class="touchpoints">
-
-  <figure>
-    <img :src="'/slides/slides-assets/brief-review.png'" alt="Brief review UI: design brief on the right, feedback textarea, approve button" />
-    <figcaption>
-      <strong>1. Brief review</strong><br/>
-      Approve brief → build, or send free-text feedback → re-generate.
-      Buttons: <em>"Approve brief → build"</em>, <em>"Send feedback"</em>.
-    </figcaption>
-  </figure>
-
-  <figure>
-    <img :src="'/slides/slides-assets/build-review.png'" alt="Build review UI: QA report, technical-notes textarea, save/revise buttons, live preview" />
-    <figcaption>
-      <strong>2. Build review</strong><br/>
-      QA report visible. Save, request changes with technical notes, or go back to the brief.
-      Buttons: <em>"Save as release"</em>, <em>"Request changes"</em>, <em>"Back to brief"</em>.
-    </figcaption>
-  </figure>
-
-</div>
-
-<div class="key-point">
-<strong>3. Final save</strong> is the editor's click. Nothing ever publishes itself. The QA verdict is shown — and ignored if the editor likes the page anyway.
-</div>
-
-<style>
-.touchpoints { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-.touchpoints figure { margin: 0; }
-.touchpoints img { width: 100%; max-block-size: 42vh; object-fit: contain; border: 1px solid var(--shell-line); border-radius: 6px; box-shadow: 0 12px 24px -16px rgb(0 0 0 / 0.2); }
-.touchpoints figcaption { font-size: 0.88rem; color: var(--shell-muted); margin-top: 0.6rem; line-height: 1.45; }
-.touchpoints figcaption strong { color: var(--shell-ink); font-weight: 600; }
-.touchpoints figcaption em { color: var(--shell-brand); font-style: normal; font-weight: 500; }
-.key-point { margin-top: 1rem; padding: 0.75rem 1rem; background: color-mix(in oklch, var(--shell-accent) 14%, transparent); border-radius: 6px; font-size: 0.95rem; }
-.key-point strong { color: var(--shell-brand); }
-</style>
+<!--
+billig kontroll av output, kan inte lita på agent-prompt-gate men funkar ju för det mesta. Problem när man har input fields även om de är bok-metadata-specifika. Även editor input kan vara ett problem här som evt behöver fler gates.
+-->
 
 ---
 layout: default
@@ -695,9 +685,9 @@ layout: default
   <text x="325" y="150" text-anchor="middle" class="mono">encodeFrame(...) per token</text>
 
   <!-- NDJSON wire -->
-  <rect x="440" y="100" width="140" height="40" rx="20" fill="url(#tokenflow)" stroke="#c8a24a" stroke-width="1.5" />
+  <rect x="440" y="100" width="150" height="50" rx="20" fill="url(#tokenflow)" stroke="#c8a24a" stroke-width="1.5" />
   <text x="510" y="118" text-anchor="middle" class="ndjson">NDJSON</text>
-  <text x="510" y="133" text-anchor="middle" class="ndjson-sub">{"type":"token","text":"…"}</text>
+  <text x="515" y="133" text-anchor="middle" class="ndjson-sub">{"type":"token","x":"…"}</text>
 
   <!-- readFrames -->
   <rect x="620" y="80" width="170" height="80" rx="6" fill="#faf8f3" stroke="#2f4a3c" stroke-width="2" />
@@ -782,7 +772,7 @@ The browser is already an HTML streaming parser. Use the platform.
 
 <div class="code">
 
-```ts {all|2-7|9-12|14-17}
+```ts
 // app/generate/flow/useStreamingIframe.ts (key methods)
 const start = useCallback(() => {
   if (stateRef.current === "open") return;
@@ -863,7 +853,7 @@ layout: default
 
 # NDJSON: encode &amp; decode
 
-```ts {all|1-4|6-22}
+```ts
 // Server: one frame → one newline-delimited JSON line
 export function encodeFrame(frame: BuildFrame): Uint8Array {
   return new TextEncoder().encode(JSON.stringify(frame) + "\n");
@@ -906,16 +896,15 @@ layout: default
 
 <div class="shell-grid">
 
-  <div>
-    <h2>The mechanic</h2>
-    <ul>
-      <li><strong>Server-side fetch + sanitise</strong>: strip <code>&lt;script&gt;</code>, inline handlers, <code>javascript:</code> URLs. Extract <code>&lt;body&gt;</code>.</li>
-      <li><strong>Native <code>@scope</code></strong> wraps the artifact's CSS. Selectors are implicitly rooted at <code>.release-artifact</code>; cascade stops at the scope edge.</li>
-      <li><strong>Stacking isolation</strong>: <code>.release-body { isolation: isolate }</code> on the shell's <code>&lt;main&gt;</code> keeps the artifact's <code>z-index</code> trapped underneath the sticky header and buy bar.</li>
-    </ul>
+<div>
+<h2>The mechanic</h2>
+<ul>
+  <li><strong>Server-side fetch + sanitise</strong>: strip <code>&lt;script&gt;</code>, inline handlers, <code>javascript:</code> URLs. Extract <code>&lt;body&gt;</code>.</li>
+  <li><strong>Native <code>@scope</code></strong> wraps the artifact's CSS. Selectors are implicitly rooted at <code>.release-artifact</code>; cascade stops at the scope edge.</li>
+  <li><strong>Stacking isolation</strong>: <code>.release-body { isolation: isolate }</code> on the shell's <code>&lt;main&gt;</code> keeps the artifact's <code>z-index</code> trapped underneath the sticky header and buy bar.</li>
+</ul>
 
-```ts
-// lib/releases/body.ts:14-17
+```js
 function scopeCss(css: string, scope: string): string {
   const remapped = css.replace(
     /(^|[\s,{}])(:root|html|body)(?=[\s,{])/g, "$1:scope");
@@ -923,14 +912,14 @@ function scopeCss(css: string, scope: string): string {
 }
 ```
 
-  </div>
+</div>
 
-  <div>
-    <h2>Why this over an iframe?</h2>
-    <p>SSR. The release page is server-rendered HTML in <code>&lt;main&gt;</code>. SEO, JSON-LD, the sticky buy bar all keep working — and a broken artifact can't break any of them.</p>
-    <p>Plus: the artist's <code>position: sticky</code> pins and <code>animation-timeline: scroll()</code> choreography work across the whole viewport, not just an iframe.</p>
-    <p class="note">(Next slide: when iframe would be the right call instead.)</p>
-  </div>
+<div>
+  <h2>Why this over an iframe?</h2>
+  <p>SSR. The release page is server-rendered HTML in <code>&lt;main&gt;</code>. SEO, JSON-LD, the sticky buy bar all keep working — and a broken artifact can't break any of them.</p>
+  <p>Plus: the artist's <code>position: sticky</code> pins and <code>animation-timeline: scroll()</code> choreography work across the whole viewport, not just an iframe.</p>
+  <p class="note">(Next slide: when iframe would be the right call instead.)</p>
+</div>
 
 </div>
 
@@ -940,11 +929,16 @@ function scopeCss(css: string, scope: string): string {
 .shell-grid ul { margin: 0 0 1rem; padding-left: 1.2rem; }
 .shell-grid li { font-size: 0.92rem; line-height: 1.45; margin-bottom: 0.4rem; }
 .shell-grid p { font-size: 0.95rem; line-height: 1.55; margin: 0 0 0.5rem; }
-.shell-grid code { font-family: var(--font-mono); font-size: 0.88em; background: var(--shell-surface); border: 1px solid var(--shell-line); padding: 0.05em 0.3em; border-radius: 3px; }
 .shell-grid pre { margin: 0.25rem 0 0; font-size: 0.85em; }
 .shell-grid .note { color: var(--shell-muted); font-style: italic; font-size: 0.85rem; }
 .shell-grid strong { color: var(--shell-ink); font-weight: 600; }
 </style>
+
+<!--
+`@scope` - classname protector, but inherits css properties like line-height and base fonts from outside.
+
+`isolation: isolate` to sandbox z-index via new stacking context. Required here to not break scroll animations. If wrapper used `overflow: hidden` would create new scroll area on main that does not scroll and fudge all scroll-view animations.
+-->
 
 ---
 layout: default
@@ -1053,20 +1047,19 @@ class: text-center
 <div class="takeaways">
   <div class="t">
     <span class="num">01</span>
-    <p><strong>Inserting generated HTML into a production app is the hard part.</strong> Sanitise, scope, isolate. The Next.js shell has to own SEO, metadata, the buy flow — the artifact is just a body that gets dropped in. Get the boundary right and a broken model output can't break anything that matters.</p>
+    <p><strong>Inserting generated HTML into a production app is the hard part.</strong></p>
   </div>
   <div class="t">
     <span class="num">02</span>
-    <p><strong>Keep the human in the loop.</strong> Not as a rubber stamp — as the person steering. An editor who can redirect the brief, request a revision, and decide when it's done is using a tool. An editor who only sees a final "approve" button is being managed by one.</p>
+    <p><strong>Keep the human in the loop.</strong></p>
   </div>
   <div class="t">
     <span class="num">03</span>
-    <p><strong>The prompt is the product — and this experiment doesn't treat it like one.</strong> If this moved past prototype, the agent prompts would each be their own project: versioned, broken into composable fragments, evaluated against a fixture corpus, regression-tested on every change, observed in prod. That scaffolding is the actual work.</p>
+    <p><strong>The prompt is the product — and this experiment doesn't treat it like one.</strong></p>
   </div>
 </div>
 
 <div class="closing">
-<code>/slides</code> · talk by Tobias Lundin · with thanks to Bjørn for the question
 </div>
 
 <style>
@@ -1078,3 +1071,9 @@ class: text-center
 .closing { margin-top: 2.5rem; font-size: 0.85rem; color: var(--shell-muted); font-family: var(--font-mono); }
 .closing code { color: var(--shell-brand); }
 </style>
+
+<!--
+1. Sanitise, scope, isolate. The Next.js shell has to own SEO, metadata, the buy flow — the artifact is just a body that gets dropped in. Get the boundary right and a broken model output can't break anything that matters.
+2. Not as a rubber stamp — as the person steering. An editor who can redirect the brief, request a revision, and decide when it's done is using a tool. An editor who only sees a final "approve" button is being managed by one.
+3. If this moved past prototype, the agent prompts would each be their own project: versioned, broken into composable fragments, evaluated against a fixture corpus, regression-tested on every change, observed in prod. That scaffolding is the actual work.
+-->
