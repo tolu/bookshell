@@ -2,9 +2,9 @@
 
 A Next.js (App Router) demo of one way to do hybrid AI-rendered pages:
 
-- **Sanity holds the index.** Slugs, the pointer to each generated HTML file, SEO fields, status.
-- **Next.js owns the shell.** Site header, sticky buy bar, footer, page metadata, JSON-LD, canonical URL. Everything search engines and the buy flow care about.
-- **The generated page is rendered server-side into `<main>`**, with its CSS scoped so it can't reach the shell and its stacking context isolated so it can't paint over it.
+- **(fake)Sanity holds the index.** Slugs, the pointer to each generated HTML file, SEO fields, status.
+- **Next.js owns the app shell.** Site header, sticky buy bar, footer, page metadata, JSON-LD (SEO), canonical URL. Everything search engines and the purchase flow might care about.
+- **The generated page is rendered server-side into `<main>`**, with its CSS scoped (CSS: `@scope`) so it can't reach the shell and its stacking context isolated (CSS: `isolation: isolate`) so it can't paint over it.
 
 Sanity is faked with a static JSON file so the demo runs without external services.
 
@@ -43,7 +43,7 @@ npm run dev                        # or: npm run build && npm start
 Each artifact's `<style>` block is wrapped in native [`@scope`](https://developer.mozilla.org/en-US/docs/Web/CSS/@scope):
 
 ```css
-@scope (.release-artifact) { /* artifact CSS, untouched */ }
+@scope (.release-artifact) { /* gen-artifact CSS, untouched */ }
 ```
 
 The browser handles every selector, at-rule, and inheritance boundary correctly — no regex, no parser, no edge cases. The only fixup is remapping the artifact's own `:root`/`html`/`body` selectors to `:scope` so their custom-property declarations land on the wrapper instead of the document root. Shipped in all evergreen browsers (Chrome 118+, Safari 17.4+, Firefox 128+).
@@ -73,7 +73,7 @@ What we do, in [`lib/releases/body.ts`](lib/releases/body.ts):
 - **Extract `<body>…</body>`** — drops `<head>`, removing `<meta http-equiv="refresh">`, `<link rel="preload" as="script">`, base-tag hijacks.
 - **Wrap the result in `<div class="release-artifact">`** — gives the `@scope` CSS something to target.
 
-What we don't, and why — the trust model is a generator we own pointed at by Sanity records our editors control:
+What we don't, and why — the trust model is a generator we own pointed at by Sanity records editors (would) control:
 
 - **No HTML parser; regex against raw HTML.** Defeatable by nested or malformed tags, but unnecessary against a generator we own.
 - **No tag or attribute allowlist.** Things like `<iframe srcdoc>`, `<object>`, `<form action="javascript:">`, `<svg><script>` would pass; same reason.
